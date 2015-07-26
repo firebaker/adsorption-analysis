@@ -1,5 +1,6 @@
+import numpy as np
 from scipy.optimize import curve_fit
-from .checkpass import _check_nan
+from checkpass import _check_nan
 
 
 """ bare isotherm equations """
@@ -15,10 +16,18 @@ def freundlichIsotherm(x, Kf, n):
     return Kf * x**(1/n)
 
 
-# Langmuir isotherm equation and related functions
+# Langmuir isotherm equation
 def langmuirIsotherm(x, Smax, Kl):
     return Smax * Kl * x / (1 + Kl * x)
 
+
+# guess Smax, optional for fitLangmuir
+def guessSmax(x, y, xndpts=3):
+    xlist = sorted(range(len(x)), key=lambda i: x[i])[-xndpts:]
+    ylist = []
+    for index in xlist:
+        ylist.append(y[index])
+    return np.mean(ylist)
 
 """" algorithms to fit isotherms to experimental results"""
 
