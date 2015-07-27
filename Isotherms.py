@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.optimize import curve_fit
-from checkpass import _check_nan
+from checkPass import _check_nan
 
 
 """ bare isotherm equations """
@@ -33,30 +33,30 @@ def guessSmax(x, y, xndpts=3):
 
 
 # fit linear isotherm
-def fitLinear(x, y, Kd):
+def fitLinear(x, y, Kd=1):
     try:
         popt, pcov = curve_fit(linearIsotherm, x, y, p0=(Kd))
         _check_nan(popt)
-        return popt, pcov
+        return {'popt': popt, 'pcov': pcov}
     except:
-        return None, 'warning: unable to fit linear isotherm'
+        return {'warning': 'unable to fit linear isotherm'}
 
 
 # fit freundlich isotherm
-def fitFreundlich(x, y, Kf, n):
+def fitFreundlich(x, y, Kf=1, n=1):
     try:
         popt, pcov = curve_fit(freundlichIsotherm, x, y, p0=(Kf, n))
         _check_nan(popt)
-        return popt, pcov
+        return {'popt': popt, 'pcov': pcov}
     except:
-        return None, 'warning: unable to fit linear isotherm'
+        return {'warning': 'unable to fit freundlich isotherm'}
 
 
 # fit langmuir isotherm
-def fitLangmuir(x, y, Smax, Kl):
+def fitLangmuir(x, y, Smax=1, Kl=1):
     try:
         popt, pcov = curve_fit(langmuirIsotherm, x, y, p0=(Smax, Kl))
         _check_nan(popt)
-        return popt, pcov
+        return {'popt': popt, 'pcov': pcov}
     except:
-        return None, 'warning: unable to fit linear isotherm'
+        return {'warning': 'unable to fit langmuir isotherm'}
