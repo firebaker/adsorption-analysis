@@ -2,11 +2,13 @@
 Adsorption-anlysis provides tools to analyze experimental adsorption results.
 
 Current Features List:
-- individually or all-at-once fit linear, freundlich, or langmuir isotherms to an experimental dataset using scipy.optimize.curve_fit; returns dictionary with popt and pcov or warning if unable to fit isotherm
+- fit linear, freundlich, or langmuir isotherm to an experimental dataset using scipy.optimize.curve_fit; returns dictionary with popt, pcov, SSR (sum of squared residuals), or warning if unable to fit isotherm; initial parameters for fitting are set to "1" if not declared
+- fit all isotherms to dataset; returns dictionary of each isotherm with popt, pcov, and SSR or warning if unable to fit isotherm; initial parameters for fitting are set to "1" if not declared
+- (optional) guessQmax() -> use to guess initial Qmax for subsequent langmuir fitting; declare "xndpts" as needed, see function
 
-TODO Feature List:
-- statistically test for best fit isotherm using Sum of Squared Errors (SSE)
-- create confidence interval for isotherms
-- plot isotherms with pertinent data (optionally including confidence intervals)
+TODO List:
+- create function to plot isotherms
+- add pertinent data to plots
+- optionally, including confidence intervals to plots
 - examine multiple adsorption datasets and compare isotherms
-- check isotherms results for impossible outputs
+- check isotherms output for impossible 

@@ -23,7 +23,7 @@ def langmuirIsotherm(x, Qmax, Kl):
     return Qmax * Kl * x / (1 + Kl * x)
 
 
-""" check adsorption inputs """
+""" checkPass """
 
 
 # check adsorption input

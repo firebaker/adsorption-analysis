@@ -1,3 +1,6 @@
+""" functions to aid in building data structures"""
+
+
 # check if key-of-dict exists in dict, if not create
 def _chk_key_dict(keydict, dict):
     if hasattr(keydict, '__iter__'):
