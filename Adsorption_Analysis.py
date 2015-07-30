@@ -36,7 +36,8 @@ def fitFreundlich(x, y, Kf=1, n=1, checkInput=True):
     try:
         popt, pcov = curve_fit(bAA.freundlichIsotherm, x, y, p0=(Kf, n))
         _check_nan(popt)
-        return {'popt': popt, 'pcov': pcov}
+        SSR = _regSSR(bAA.freundlichIsotherm, x, y, popt)
+        return {'popt': popt, 'pcov': pcov, 'SSR': SSR}
     except:
         return {'warning': 'unable to fit freundlich isotherm'}
 
@@ -48,7 +49,8 @@ def fitLangmuir(x, y, Qmax=1, Kl=1, checkInput=True):
     try:
         popt, pcov = curve_fit(bAA.langmuirIsotherm, x, y, p0=(Qmax, Kl))
         _check_nan(popt)
-        return {'popt': popt, 'pcov': pcov}
+        SSR = _regSSR(bAA.langmuirIsotherm, x, y, popt)
+        return {'popt': popt, 'pcov': pcov, 'SSR': SSR}
     except:
         return {'warning': 'unable to fit langmuir isotherm'}
 
