@@ -7,6 +7,7 @@ from scipy.optimize import curve_fit
 from dataStructure import _chk_key_dict
 from checkPass import _check_nan
 from stats import _regSSR
+from stats import _confSSR
 import background_Adsorption_Analysis as bAA
 
 
@@ -20,7 +21,11 @@ variables for each isotherm in an output dictionary
 # generic fit isotherm function (optionally user defined);
 # return popt, pcov, SSR
 def fitIsotherm(
-        isotherm, x, y, p0, checkInput=True, isoName='user-defined'):
+        isotherm,
+        x, y,
+        p0,
+        alpha=0.05,
+        checkInput=True, isoName='user-defined'):
     if checkInput:
         bAA.checkAdsorptionInput(x, y)
         x = np.float64(x)
@@ -29,37 +34,43 @@ def fitIsotherm(
         popt, pcov = curve_fit(isotherm, x, y, p0)
         _check_nan(popt)
         SSR = _regSSR(isotherm, x, y, popt)
+        try:
+            upper, lower = _confSSR(isotherm, x, y, alpha, popt, pcov)
+        except:
+            upper, lower = 'unable to fit conf interval'
         # convert popt and pcov from np.array to list
         popt_return = np.array(popt).tolist()
         pcov_return = np.array(pcov).tolist()
-        return {'popt': popt_return, 'pcov': pcov_return, 'SSR': SSR}
+        return {'popt': popt_return, 'pcov': pcov_return,
+                'SSR': SSR, 'upper': upper, 'lower': lower}
     except:
         return {'warning': 'unable to fit %s isotherm' % isoName}
 
 
 # fit linear isotherm; return popt, pcov, SSR
-def fitLinear(x, y, Kd=1, checkInput=True):
+def fitLinear(x, y, Kd=1, alpha=0.05, checkInput=True):
     p0 = (Kd)
     return fitIsotherm(
-        bAA.linearIsotherm, x, y, p0, checkInput, 'linear')
+        bAA.linearIsotherm, x, y, p0, alpha, checkInput, isoName='linear')
 
 
 # fit freundlich isotherm, return popt, pcov, SSR
-def fitFreundlich(x, y, Kf=1, n=1, checkInput=True):
+def fitFreundlich(x, y, Kf=1, n=1, alpha=0.05, checkInput=True):
     p0 = (Kf, n)
     return fitIsotherm(
-        bAA.freundlichIsotherm, x, y, p0, checkInput, 'freundlich')
+        bAA.freundlichIsotherm, x, y, p0, alpha, checkInput, 'freundlich')
 
 
 # fit langmuir isotherm, return popt, pcov, SSE
-def fitLangmuir(x, y, Qmax=1, Kl=1, checkInput=True):
+def fitLangmuir(x, y, Qmax=1, Kl=1, alpha=0.05, checkInput=True):
     p0 = (Qmax, Kl)
     return fitIsotherm(
-        bAA.langmuirIsotherm, x, y, p0, checkInput, 'langmuir')
+        bAA.langmuirIsotherm, x, y, p0, alpha, checkInput, isoName='langmuir')
 
 
+# fit linear, freundlich, and langmuir, return dict of values
 def adsorptionAnalysis(
-        x, y, Kd=1, Kf=1, n=1, Qmax=1, Kl=1, checkInput=True):
+        x, y, Kd=1, Kf=1, n=1, Qmax=1, Kl=1, alpha=0.05, checkInput=True):
     if checkInput:
         bAA.checkAdsorptionInput(x, y)
         checkInput = False
@@ -74,11 +85,11 @@ def adsorptionAnalysis(
         'langmuir'), working)
     # fit isotherms to data; return to working dictionary
     working['linear'].update(fitLinear(
-        x_iso, y_iso, Kd, checkInput))
+        x_iso, y_iso, Kd, alpha, checkInput))
     working['freundlich'].update(fitFreundlich(
-        x_iso, y_iso, Kf, n, checkInput))
+        x_iso, y_iso, Kf, n, alpha, checkInput))
     working['langmuir'].update(fitLangmuir(
-        x_iso, y_iso, Qmax, Kl, checkInput))
+        x_iso, y_iso, Qmax, Kl, alpha, checkInput))
     for isotherm in working:
         if 'warning' in working[isotherm]:
             print 'warning: %s' % working[isotherm]['warning']
