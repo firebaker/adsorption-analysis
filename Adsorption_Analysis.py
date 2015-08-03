@@ -38,9 +38,7 @@ def fitIsotherm(
         SSR = _regSSR(isotherm, x, y, popt)
         AIC = _regAIC(isotherm, x, y, popt)
         # calculate confidence interval
-        lower, upper = _reg_conf(isotherm, x, y, alpha, popt, pcov)
-        # calculate the adsorption significance
-        # TODO
+        upper, lower = _reg_conf(isotherm, x, y, alpha, popt, pcov)
         # convert popt and pcov from np.array to list
         popt_return = np.array(popt).tolist()
         pcov_return = np.array(pcov).tolist()
