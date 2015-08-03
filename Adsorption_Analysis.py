@@ -7,7 +7,8 @@ from scipy.optimize import curve_fit
 from dataStructure import _chk_key_dict
 from checkPass import _check_nan
 from stats import _regSSR
-from stats import _confSSR
+from stats import _regAIC
+from stats import _reg_conf
 import background_Adsorption_Analysis as bAA
 
 
@@ -33,16 +34,18 @@ def fitIsotherm(
     try:
         popt, pcov = curve_fit(isotherm, x, y, p0)
         _check_nan(popt)
+        # calculate SSR and AIC
         SSR = _regSSR(isotherm, x, y, popt)
-        try:
-            upper, lower = _confSSR(isotherm, x, y, alpha, popt, pcov)
-        except:
-            upper, lower = 'unable to fit conf interval'
+        AIC = _regAIC(isotherm, x, y, popt)
+        # calculate confidence interval
+        lower, upper = _reg_conf(isotherm, x, y, alpha, popt, pcov)
+        # calculate the adsorption significance
+        # TODO
         # convert popt and pcov from np.array to list
         popt_return = np.array(popt).tolist()
         pcov_return = np.array(pcov).tolist()
         return {'popt': popt_return, 'pcov': pcov_return,
-                'SSR': SSR, 'upper': upper, 'lower': lower}
+                'SSR': SSR, 'AIC': AIC, 'upper': upper, 'lower': lower}
     except:
         return {'warning': 'unable to fit %s isotherm' % isoName}
 
