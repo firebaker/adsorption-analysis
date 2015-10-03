@@ -5,7 +5,6 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 # adsorption-analysis modules
-import dataStructure as dS
 import checkPass as cP
 import stats as sts
 import background_Adsorption_Analysis as bAA
@@ -26,16 +25,14 @@ def fitIsotherm(
         p0,
         alpha=0.05,
         checkInput=True,
-        adsorptionOccurrence=True,
+        analyte_behavior="REMOVAL",
         isoName='user-defined'):
-    # init parameter
     if checkInput:
         bAA.checkSorptionInput(x, y)
         x = np.float64(x)
         y = np.float64(y)
-        # statistically check for sorption occurrence
-        adsorptionOccurrence = bAA.checkStatSorption(x, y, alpha)
-    if adsorptionOccurrence:
+        analyte_behavior = bAA.checkStatRemoval(x, y, alpha)
+    if analyte_behavior == "REMOVAL":
         # firebaker Note - 8/12/15: I trust curve_fit,
         # but I ultimately do not know what is happening
         # (or why it would break), therefore the try/catch statement
@@ -47,7 +44,7 @@ def fitIsotherm(
             cP._check_nan(popt)
         except:
             return {'warning': 'unable to fit %s isotherm' % isoName}
-        # calculate confidence interval
+        # confidence interval -> upper, lower
         upper, lower = sts._reg_conf(y, alpha, isoName, popt, pcov)
         # check for isotherm specific errors
         iso_spec_warn = bAA.isothermSpecificCheck(
@@ -57,12 +54,7 @@ def fitIsotherm(
             return_dict.update({'warning': iso_spec_warn['message']})
             if not iso_spec_warn['plot_capable']:
                 return return_dict
-            else:
-                if 'upper' in set(iso_spec_warn):
-                    upper = iso_spec_warn['upper']
-                elif 'lower' in set(iso_spec_warn):
-                    lower = iso_spec_warn['lower']
-        # calculate SSR and AIC
+        # Sum of Squared Residuals and Asike Index Criterion
         SSR = sts._regSSR(isotherm, x, y, popt)
         AIC = sts._regAIC(isotherm, x, y, popt)
         return_dict.update({'popt': popt, 'pcov': pcov,
@@ -76,80 +68,84 @@ def fitIsotherm(
 # fit linear isotherm; return popt, pcov, SSR
 def fitLinear(
         x, y, Kd=1, alpha=0.05,
-        checkInput=True, adsorptionOccurrence=True):
+        checkInput=True, analyte_behavior="REMOVAL"):
     p0 = (Kd)
     return fitIsotherm(
         bAA.linearIsotherm, x, y,
         p0,
-        alpha, checkInput, adsorptionOccurrence, isoName='linear')
+        alpha, checkInput, analyte_behavior, isoName='linear')
 
 
 # fit freundlich isotherm, return popt, pcov, SSR
 def fitFreundlich(
         x, y,
         Kf=1, n=1, alpha=0.05,
-        checkInput=True, adsorptionOccurrence=True):
+        checkInput=True, analyte_behavior="REMOVAL"):
     p0 = (Kf, n)
     return fitIsotherm(
         bAA.freundlichIsotherm, x, y,
         p0,
-        alpha, checkInput, adsorptionOccurrence, isoName='freundlich')
+        alpha, checkInput, analyte_behavior, isoName='freundlich')
 
 
 # fit langmuir isotherm, return popt, pcov, SSE
 def fitLangmuir(
         x, y,
         Qmax=1, Kl=1,
-        alpha=0.05, checkInput=True, adsorptionOccurrence=True):
+        alpha=0.05, checkInput=True, analyte_behavior="REMOVAL"):
     p0 = (Qmax, Kl)
     return fitIsotherm(
         bAA.langmuirIsotherm, x, y,
         p0,
-        alpha, checkInput, adsorptionOccurrence, isoName='langmuir')
+        alpha, checkInput, analyte_behavior, isoName='langmuir')
 
 
 # attempt to fit all isotherms available in module;
-# return dict of values
+# return dict of values and general analyte behavior
 def AdsorptionAnalysis(
         x, y, K_,
         Kd=1, Kf=1, n=1, Qmax=1, Kl=1,
-        alpha=0.05, checkInput=True, adsorptionOccurrence=True):
+        alpha=0.05, checkInput=True, analyte_behavior="REMOVAL"):
     if checkInput:
         bAA.checkSorptionInput(x, y)
         checkInput = False
-        # statistically check for sorption occurrence
-        adsorptionOccurrence = bAA.checkStatAdsorption(x, y, alpha)
-    # convert input values to float64
+        analyte_behavior = bAA.checkStatRemoval(x, y, alpha)
     x_iso = np.float64(x)
     y_iso = np.float64(y)
-    # check sorptionOccurrence for t/f
-    if adsorptionOccurrence:
-        # create isotherm fitting output dictionary
+    # print whether addition, removal, or no diff from zero
+    if analyte_behavior == "REMOVAL":
         if K_:
             Kd = Kf = Kl = K_
-        output = {}
-        dS._chk_key_dict((
-            'linear',
-            'freundlich',
-            'langmuir'), output)
-        # fit isotherms to data; return to output dictionary
-        output['linear'].update(fitLinear(
-            x_iso, y_iso, Kd, alpha,
-            checkInput, adsorptionOccurrence))
-        output['freundlich'].update(fitFreundlich(
-            x_iso, y_iso, Kf, n, alpha,
-            checkInput, adsorptionOccurrence))
-        output['langmuir'].update(fitLangmuir(
-            x_iso, y_iso, Qmax, Kl, alpha,
-            checkInput, adsorptionOccurrence))
+        output = {'linear': fitLinear(
+                            x_iso, y_iso, Kd, alpha,
+                            checkInput, analyte_behavior),
+                  'freundlich': fitFreundlich(
+                                x_iso, y_iso, Kf, n, alpha,
+                                checkInput, analyte_behavior),
+                  'langmuir': fitLangmuir(
+                              x_iso, y_iso, Qmax, Kl, alpha,
+                              checkInput, analyte_behavior),
+                  'analyte_behavior': analyte_behavior}
         for isotherm in output:
             if 'warning' in output[isotherm]:
-                print 'warning: %s' % output[isotherm]['warning']
+                print "{0} warning: {1}".format(
+                isotherm,
+                output[isotherm]['warning'])
+        if 'warning' in output['linear']:
+            if output['linear']['warning'] == """UNABLE TO PLOT:
+                    Although the data is statistically different from
+                    zero, the fitted linear isotherm is not""":
+                        analyte_behavior = "NOCHANGE"
+            else:
+                analyte_behavior = "ADDITTION"
+            output['analyte_behavior'] = analyte_behavior
     else:
         output = {'warning':
-                  'checkStatAdsorption fail for alpha = %s'
-                  .format(alpha)}
-        print 'warning: %s' % output['warning']
+                  """checkStatAdsorption fail for alpha = {0:.2}
+                  analyte behavior = {1}"""
+                  .format(alpha, analyte_behavior), 
+                  'analyte_behavior': analyte_behavior}
+        print 'warning: {0:s}'.format(output['warning'])
     return output
 
 

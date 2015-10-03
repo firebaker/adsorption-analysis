@@ -46,98 +46,98 @@ def isothermSpecificCheck(isoName, popt, upper, lower):
 
     # linear specific check
     elif isoName == 'linear':
-        # check if Kd > 0 (indicates adsorption)
+        # Kd must be > 0 (indicates adsorption)
         if popt[0] <= 0:
             return {'warning': True,
                     'plot_capable': False,
-                    'message': """"unable to plot: The Kd < 0
-                    indicates non-adsorption"""}
-        # check if confidence interval contains zero
+                    'message': """UNABLE TO PLOT:
+                    Kd ({0:.3}) < 0; indicates non-adsorption"""
+                    .format(popt[0])}
+        # confidence interval must not contain zero
         if sts._conf_cont_zero(linearIsotherm, 0.001, upper, lower):
             return {'warning': True,
                     'plot_capable': False,
-                    'message': """unable to plot: Although the data is
-                    statistically different from zero, the fitted linear
-                    isotherm is not"""}
+                    'message': """UNABLE TO PLOT:
+                    Although the data is statistically different from
+                    zero, the fitted linear isotherm is not"""}
         return {'warning': False}
 
-    # freundlich specific checks
+    # freundlich theory specific checks
     elif isoName == 'freundlich':
-        # check if 'n' >= 1
+        # 'n' must be >= 1
         if not popt[1] >= 1.0:
             return {'warning': True,
                     'plot_capable': False,
-                    'message': """unable to plot: Freundlich theory
-                    requires that 'n' >= 1"""}
-        # check if Kf > 0 (indicates adsorption)
+                    'message': """UNABLE TO PLOT:
+                    Freundlich theory requires that
+                    'n' ({0:.3}) >= 1"""
+                    .format(popt[1])}
+        # Kf must be > 0
         if popt[0] <= 0:
             return {'warning': True,
                     'plot_capable': False,
-                    'message': """"unable to plot:
-                    'Kf' (={0}) < 0
+                    'message': """"UNABLE TO PLOT:
+                    'Kf' ({0:.3}) < 0
                     indicates non-adsorption"""
                     .format(popt[0])}
-        # check lower Kf > 0
-        # if not then the confidence interval
+        # lower Kf must be > 0
         if lower[0] <= 0:
             return {'warning': True,
                     'plot_capable': False,
-                    'message': """unable to plot:
-                    lower confidence interval Kf (={0}) < 0;
+                    'message': """UNABLE TO PLOT:
+                    lower confidence interval Kf ({0:.3}) < 0;
                     indicates adsorption is
-                    non-statistically significant"""}
-        # check upper n >= 1
-        # if less, indicates very poor fit
+                    non-statistically significant"""
+                    .format(lower[0])}
+        # upper n must be >= 1
         if upper[1] < 1:
             return {'warning': True,
                     'plot_capable': False,
-                    'message': """ unable to plot:
-                    upper n (={0}) < 1 indicates very poor fit"""}
+                    'message': """UNABLE TO PLOT:
+                    upper n ({0:.3}) < 1;
+                    indicates poor fit"""
+                    .format(upper[1])}
         return {'warning': False}
 
-    # langmuir specific checks
+    # langmuir theory specific checks
     elif isoName == 'langmuir':
-        # check if Qmax, Kl > 0 (indicates adsorption)
+        # Qmax & Kl must be > 0
         if popt[0] <= 0 or popt[1] <= 0:
             return {'warning': True,
                     'plot_capable': False,
-                    'message': """unable to plot:
-                    Qmax (={0}) and/or Kf (={1}) < 0
+                    'message': """UNABLE TO PLOT:
+                    Qmax ({0:.3}) and/or Kf ({1:.3}) < 0
                     indicates non-adsorption"""
                     .format(popt[0], popt[1])}
-        # check lower Qmax and Kl are both > 0
+        # lower Qmax & Kl must be > 0
         if lower[0] <= 0 or lower[1] <= 0:
             return {'warning': True,
                     'plot_capable': False,
-                    'message': """unable to plot:
-                    lower Qmax (={0}) and/or Kf (={1}) < 0
+                    'message': """UNABLE TO PLOT:
+                    lower Qmax ({0:.3}) and/or Kf ({1:.3}) < 0
                     indicates adsorption is
                     non-statistically significant"""
                     .format(lower[0], lower[1])}
         return {'warning': False}
 
 
-# check sorption input
+# check sorption input for logical requirements
 def checkSorptionInput(x, y):
-    # set variables for input
     errorcheck = 0
     errorlist = []
-    # verify values are numeric
     for array in (x, y):
         try:
             cP._verify_numeric(array)
         except TypeError:
-            errorcheck = errorcheck + 1
+            errorcheck += 1
             errorlist.append(
                 'TypeError: not all input values are numeric')
-    # verify arrays of equal length
     try:
         cP._verify_similar_length(x, y)
     except:
-        errorcheck = errorcheck + 1
+        errorcheck += 1
         errorlist.append(
             'ArrayError: input arrays are not of equal length')
-    # stop function if errorcheck > 0
     if errorcheck > 0:
         print 'Error in -> adsorptionAnalysis:'
         for error in errorlist:
@@ -145,19 +145,18 @@ def checkSorptionInput(x, y):
         return None
 
 
-# statistically check for adsorption occurrence
+# statistically check for removal occurrence
 # H0: data not different from zero
 # Ha: data > zero
-def checkStatAdsorption(x, y, alpha=0.05):
-    # fit linear regression to data
+# test rejection of H0: LinReg not different from zero line
+# False -> unable to reject; True -> able to reject
+def checkStatRemoval(x, y, alpha=0.05):
     s_popt, s_pcov = curve_fit(sts._linReg, x, y)
-    if s_popt[0] <= 0:
-        return False
     s_upper, s_lower = sts._reg_conf(y, alpha, 'linear', s_popt, s_pcov)
-    # test rejection of H0: LinReg not different from zero line
-    # False -> unable to reject; True -> able to reject
     if sts._chk_reg_diff_zero(
             sts._linReg, x, s_upper, s_lower):
-        return True
+        if s_popt[0] <= 0:
+            return 'ADDITION'
+        return 'REMOVAL'
     else:
-        return False
+        return 'NOCHANGE'

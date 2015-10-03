@@ -36,12 +36,10 @@ def _regAIC(func, xdata, ydata, popt, k=2):
 # with case specific modifications (e.g. 'freundlich')
 # requires 'popt' and 'pcov' variables from curve_fit()
 def _reg_conf(ydata, alpha, isoName, popt, pcov):
-    # init variables
-    n_obs = len(ydata)  # number of data points
+    n_obs = len(ydata)  # number of observations
     n_params = len(popt)  # number of parameters
     dof = max(0, n_obs - n_params)  # degrees of freedom
-    tval = t.ppf(1.0-alpha/2., dof)  # calculate student-t value
-    # return popt for lower and upper conf intervals
+    tval = t.ppf(1.0-alpha/2., dof)  # student-t value
     upper = []
     lower = []
     # case specific: freundlich
@@ -76,18 +74,16 @@ def _reg_conf(ydata, alpha, isoName, popt, pcov):
 # check if regression is statistically different from zero
 # H0: regression conf intrvl contains zero for all values of x
 # Ha: regression conf intrvl does not contain zero for all values of x
+# Test H0 rejection validity; reject null hypothesis?
+# False -> unable to reject; True -> able to reject
 def _chk_reg_diff_zero(func, x, upper, lower, chk_pts=50):
-    # 'number of chk_pts' from min to max of (x) x-axis values to test
+    # 'number of chk_pts' from min to max of (x) values to test
     x_LReg = np.linspace(np.min(x), np.max(x), chk_pts)
-    # initialize conf intervals lists
     y_LREG_upper = []
     y_LREG_lower = []
-    # input conf intervals based upon upper and lower popt values
     for val in x_LReg:
         y_LREG_upper.append(func(val, *upper))
         y_LREG_lower.append(func(val, *lower))
-    # Test H0 rejection validity; reject null hypothesis?
-    # False -> unable to reject; True -> able to reject
     for up, low, in zip(y_LREG_upper, y_LREG_lower):
         if not up >= 0 >= low:
             return True
