@@ -44,16 +44,17 @@ def fitIsotherm(
             cP._check_nan(popt)
         except:
             return {'warning': 'unable to fit %s isotherm' % isoName}
+        return_dict = {}
         # confidence interval -> upper, lower
         upper, lower = sts._reg_conf(y, alpha, isoName, popt, pcov)
         # check for isotherm specific errors
         iso_spec_warn = bAA.isothermSpecificCheck(
             isoName, popt, upper, lower)
-        return_dict = {}
         if iso_spec_warn['warning']:
             return_dict.update({'warning': iso_spec_warn['message']})
             if not iso_spec_warn['plot_capable']:
                 return return_dict
+        return_dict.update({'upper': upper, 'lower': lower})
         # Sum of Squared Residuals and Asike Index Criterion
         SSR = sts._regSSR(isotherm, x, y, popt)
         AIC = sts._regAIC(isotherm, x, y, popt)
@@ -112,41 +113,45 @@ def AdsorptionAnalysis(
         analyte_behavior = bAA.checkStatRemoval(x, y, alpha)
     x_iso = np.float64(x)
     y_iso = np.float64(y)
-    # print whether addition, removal, or no diff from zero
     if analyte_behavior == "REMOVAL":
         if K_:
             Kd = Kf = Kl = K_
-        output = {'linear': fitLinear(
-                            x_iso, y_iso, Kd, alpha,
-                            checkInput, analyte_behavior),
-                  'freundlich': fitFreundlich(
-                                x_iso, y_iso, Kf, n, alpha,
-                                checkInput, analyte_behavior),
-                  'langmuir': fitLangmuir(
-                              x_iso, y_iso, Qmax, Kl, alpha,
-                              checkInput, analyte_behavior),
-                  'analyte_behavior': analyte_behavior}
-        for isotherm in output:
-            if 'warning' in output[isotherm]:
+        isotherm_results = {}
+        isotherm_results['linear'] = fitLinear(
+                                     x_iso, y_iso, Kd, alpha,
+                                     checkInput, analyte_behavior)
+        if 'warning' in isotherm_results['linear']:
+            if isotherm_results['linear']['warning'] == """UNABLE TO PLOT:
+            Although the data is statistically different from
+            zero, the fitted linear isotherm is not""":
+                analyte_behavior = "NOCHANGE"
+            else:
+                analyte_behavior = "ADDITION"
+        else:
+            isotherm_results['freundlich'] = fitFreundlich(
+                                             x_iso, y_iso, Kf, n, alpha,
+                                             checkInput, analyte_behavior)
+            isotherm_results['langmuir'] = fitLangmuir(
+                                           x_iso, y_iso, Qmax, Kl, alpha,
+                                           checkInput, analyte_behavior)
+        """# If you want isotherm warnings to print
+        for isotherm in isotherm_results:
+            if 'warning' in isotherm_results[isotherm]:
                 print "{0} warning: {1}".format(
                 isotherm,
-                output[isotherm]['warning'])
-        if 'warning' in output['linear']:
-            if output['linear']['warning'] == """UNABLE TO PLOT:
-                    Although the data is statistically different from
-                    zero, the fitted linear isotherm is not""":
-                        analyte_behavior = "NOCHANGE"
-            else:
-                analyte_behavior = "ADDITTION"
-            output['analyte_behavior'] = analyte_behavior
+                isotherm_results[isotherm]['warning'])
+        """
+        
     else:
-        output = {'warning':
+        isotherm_results = {'warning':
                   """checkStatAdsorption fail for alpha = {0:.2}
                   analyte behavior = {1}"""
-                  .format(alpha, analyte_behavior), 
-                  'analyte_behavior': analyte_behavior}
-        print 'warning: {0:s}'.format(output['warning'])
-    return output
+                  .format(alpha, analyte_behavior)}
+        """# If you want isotherm warnings to print
+        print 'warning: {0:s}'.format(isotherm_results['warning'])
+        """
+    isotherm_results['analyte_behavior'] = analyte_behavior
+    return isotherm_results
 
 
 # guess K_ for isotherm fitting

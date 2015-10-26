@@ -36,32 +36,38 @@ def langmuirIsotherm(x, Qmax, Kl):
 # values
 def isothermSpecificCheck(isoName, popt, upper, lower):
 
-    # if user-defined, return 'unable to check warning'
-    if isoName == 'user-defined':
-        return {'warning': True,
-                'plot_capable': True,
-                'message': """unable to check or correct for
-                isotherm specific errors on user-defined isotherm
-                algorithms"""}
+# freundlich isotherm check code not used as of 10-14-15
+#    # if user-defined, return 'unable to check warning'
+#    if isoName == 'user-defined':
+#        return {'warning': True,
+#                'plot_capable': True,
+#                'message': """unable to check or correct for
+#                isotherm specific errors on user-defined isotherm
+#                algorithms"""}
 
     # linear specific check
-    elif isoName == 'linear':
+    if isoName == 'linear':
+        warning = False
         # Kd must be > 0 (indicates adsorption)
         if popt[0] <= 0:
-            return {'warning': True,
-                    'plot_capable': False,
-                    'message': """UNABLE TO PLOT:
-                    Kd ({0:.3}) < 0; indicates non-adsorption"""
-                    .format(popt[0])}
+            warning = True
+            plot_capable = False
+            message = """UNABLE TO PLOT:
+            Kd ({0:.3}) < 0; indicates non-adsorption""".format(popt[0])
         # confidence interval must not contain zero
         if sts._conf_cont_zero(linearIsotherm, 0.001, upper, lower):
-            return {'warning': True,
-                    'plot_capable': False,
-                    'message': """UNABLE TO PLOT:
-                    Although the data is statistically different from
-                    zero, the fitted linear isotherm is not"""}
-        return {'warning': False}
-
+            warning = True,
+            plot_capable = False,
+            message = """UNABLE TO PLOT:
+            Although the data is statistically different from
+            zero, the fitted linear isotherm is not"""
+        if warning:
+            return {'warning': warning,
+                    'plot_capable': plot_capable,
+                    'message': message}
+        else:
+            return {'warning': warning}
+    
     # freundlich theory specific checks
     elif isoName == 'freundlich':
         # 'n' must be >= 1
@@ -76,27 +82,28 @@ def isothermSpecificCheck(isoName, popt, upper, lower):
         if popt[0] <= 0:
             return {'warning': True,
                     'plot_capable': False,
-                    'message': """"UNABLE TO PLOT:
+                    'message': """UNABLE TO PLOT:
                     'Kf' ({0:.3}) < 0
                     indicates non-adsorption"""
                     .format(popt[0])}
-        # lower Kf must be > 0
-        if lower[0] <= 0:
-            return {'warning': True,
-                    'plot_capable': False,
-                    'message': """UNABLE TO PLOT:
-                    lower confidence interval Kf ({0:.3}) < 0;
-                    indicates adsorption is
-                    non-statistically significant"""
-                    .format(lower[0])}
-        # upper n must be >= 1
-        if upper[1] < 1:
-            return {'warning': True,
-                    'plot_capable': False,
-                    'message': """UNABLE TO PLOT:
-                    upper n ({0:.3}) < 1;
-                    indicates poor fit"""
-                    .format(upper[1])}
+# freundlich isotherm check code not used as of 10-14-15
+#        # lower Kf must be > 0
+#        if lower[0] <= 0:
+#            return {'warning': True,
+#                    'plot_capable': False,
+#                    'message': """UNABLE TO PLOT:
+#                    lower confidence interval Kf ({0:.3}) < 0;
+#                    indicates adsorption is
+#                    non-statistically significant"""
+#                    .format(lower[0])}
+#        # upper n must be >= 1
+#        if upper[1] < 1:
+#            return {'warning': True,
+#                    'plot_capable': False,
+#                    'message': """UNABLE TO PLOT:
+#                    upper n ({0:.3}) < 1;
+#                    indicates poor fit"""
+#                    .format(upper[1])}
         return {'warning': False}
 
     # langmuir theory specific checks
@@ -109,15 +116,16 @@ def isothermSpecificCheck(isoName, popt, upper, lower):
                     Qmax ({0:.3}) and/or Kf ({1:.3}) < 0
                     indicates non-adsorption"""
                     .format(popt[0], popt[1])}
-        # lower Qmax & Kl must be > 0
-        if lower[0] <= 0 or lower[1] <= 0:
-            return {'warning': True,
-                    'plot_capable': False,
-                    'message': """UNABLE TO PLOT:
-                    lower Qmax ({0:.3}) and/or Kf ({1:.3}) < 0
-                    indicates adsorption is
-                    non-statistically significant"""
-                    .format(lower[0], lower[1])}
+# freundlich isotherm check code not used as of 10-14-15
+#        # lower Qmax & Kl must be > 0
+#        if lower[0] <= 0 or lower[1] <= 0:
+#            return {'warning': True,
+#                    'plot_capable': False,
+#                    'message': """UNABLE TO PLOT:
+#                    lower Qmax ({0:.3}) and/or Kf ({1:.3}) < 0
+#                    indicates adsorption is
+#                    non-statistically significant"""
+#                    .format(lower[0], lower[1])}
         return {'warning': False}
 
 
