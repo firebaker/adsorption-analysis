@@ -36,14 +36,15 @@ def langmuirIsotherm(x, Qmax, Kl):
 # values
 def isothermSpecificCheck(isoName, popt, upper, lower):
 
-# freundlich isotherm check code not used as of 10-14-15
-#    # if user-defined, return 'unable to check warning'
-#    if isoName == 'user-defined':
-#        return {'warning': True,
-#                'plot_capable': True,
-#                'message': """unable to check or correct for
-#                isotherm specific errors on user-defined isotherm
-#                algorithms"""}
+    """ freundlich isotherm check code not used as of 10-14-15
+    # if user-defined, return 'unable to check warning'
+    if isoName == 'user-defined':
+        return {'warning': True,
+                'plot_capable': True,
+                'message': unable to check or correct for
+                isotherm specific errors on user-defined isotherm
+                algorithms}
+    """
 
     # linear specific check
     if isoName == 'linear':
@@ -160,7 +161,7 @@ def checkSorptionInput(x, y):
 # False -> unable to reject; True -> able to reject
 def checkStatRemoval(x, y, alpha=0.05):
     s_popt, s_pcov = curve_fit(sts._linReg, x, y)
-    s_upper, s_lower = sts._reg_conf(y, alpha, 'linear', s_popt, s_pcov)
+    s_upper, s_lower = sts._reg_conf_asym(y, alpha, s_popt, s_pcov)
     if sts._chk_reg_diff_zero(
             sts._linReg, x, s_upper, s_lower):
         if s_popt[0] <= 0:

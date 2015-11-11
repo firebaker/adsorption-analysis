@@ -33,7 +33,7 @@ def fitIsotherm(
         y = np.float64(y)
         analyte_behavior = bAA.checkStatRemoval(x, y, alpha)
     if analyte_behavior == "REMOVAL":
-        # firebaker Note - 8/12/15: I trust curve_fit,
+        # firebaker - 8/12/15: I trust curve_fit,
         # but I ultimately do not know what is happening
         # (or why it would break), therefore the try/catch statement
         try:
@@ -46,7 +46,8 @@ def fitIsotherm(
             return {'warning': 'unable to fit %s isotherm' % isoName}
         return_dict = {}
         # confidence interval -> upper, lower
-        upper, lower = sts._reg_conf(y, alpha, isoName, popt, pcov)
+        upper, lower = sts._reg_conf_monte(x, alpha, popt, pcov,
+                                           isotherm, p0)
         # check for isotherm specific errors
         iso_spec_warn = bAA.isothermSpecificCheck(
             isoName, popt, upper, lower)
@@ -55,7 +56,7 @@ def fitIsotherm(
             if not iso_spec_warn['plot_capable']:
                 return return_dict
         return_dict.update({'upper': upper, 'lower': lower})
-        # Sum of Squared Residuals and Asike Index Criterion
+        # Sum of Squared Residuals and Akaike Index Criterion
         SSR = sts._regSSR(isotherm, x, y, popt)
         AIC = sts._regAIC(isotherm, x, y, popt)
         return_dict.update({'popt': popt, 'pcov': pcov,
@@ -118,8 +119,8 @@ def AdsorptionAnalysis(
             Kd = Kf = Kl = K_
         isotherm_results = {}
         isotherm_results['linear'] = fitLinear(
-                                     x_iso, y_iso, Kd, alpha,
-                                     checkInput, analyte_behavior)
+            x_iso, y_iso, Kd, alpha,
+            checkInput, analyte_behavior)
         if 'warning' in isotherm_results['linear']:
             if isotherm_results['linear']['warning'] == """UNABLE TO PLOT:
             Although the data is statistically different from
@@ -129,11 +130,11 @@ def AdsorptionAnalysis(
                 analyte_behavior = "ADDITION"
         else:
             isotherm_results['freundlich'] = fitFreundlich(
-                                             x_iso, y_iso, Kf, n, alpha,
-                                             checkInput, analyte_behavior)
+                x_iso, y_iso, Kf, n, alpha,
+                checkInput, analyte_behavior)
             isotherm_results['langmuir'] = fitLangmuir(
-                                           x_iso, y_iso, Qmax, Kl, alpha,
-                                           checkInput, analyte_behavior)
+                x_iso, y_iso, Qmax, Kl, alpha,
+                checkInput, analyte_behavior)
         """# If you want isotherm warnings to print
         for isotherm in isotherm_results:
             if 'warning' in isotherm_results[isotherm]:
@@ -141,12 +142,12 @@ def AdsorptionAnalysis(
                 isotherm,
                 isotherm_results[isotherm]['warning'])
         """
-        
+
     else:
         isotherm_results = {'warning':
-                  """checkStatAdsorption fail for alpha = {0:.2}
-                  analyte behavior = {1}"""
-                  .format(alpha, analyte_behavior)}
+                            """checkStatAdsorption fail for alpha = {0:.2}
+                            analyte behavior = {1}"""
+                            .format(alpha, analyte_behavior)}
         """# If you want isotherm warnings to print
         print 'warning: {0:s}'.format(isotherm_results['warning'])
         """

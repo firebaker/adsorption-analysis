@@ -1,8 +1,12 @@
 """ statstical functions """
 
 # third party modules
+import random
+import time
 import numpy as np
+import math
 from scipy.stats.distributions import t
+from scipy.optimize import curve_fit
 
 
 # linearRegresion
@@ -14,7 +18,7 @@ def _linReg(x, m=1, b=1):
 # requires 'popt' variable from curve_fit()
 def _regSSR(func, xdata, ydata, popt):
     residuals = ydata - func(xdata, *popt)
-    SSR = sum(residuals**2)
+    SSR = sum(residuals ** 2)
     return SSR
 
 
@@ -32,43 +36,45 @@ def _regAIC(func, xdata, ydata, popt, k=2):
     return AIC
 
 
-# confidence interval calculation of the regression line
-# with case specific modifications (e.g. 'freundlich')
-# requires 'popt' and 'pcov' variables from curve_fit()
-def _reg_conf(ydata, alpha, isoName, popt, pcov):
-    n_obs = len(ydata)  # number of observations
-    n_params = len(popt)  # number of parameters
-    dof = max(0, n_obs - n_params)  # degrees of freedom
-    tval = t.ppf(1.0-alpha/2., dof)  # student-t value
+# Asymptotic confidence interval calculation (good for linear regression)
+def _reg_conf_asym(xdata, alpha, popt, pcov):
+    n_obs = len(xdata)
+    n_params = len(popt)
+    dof = max(0, n_obs - n_params)
+    tval = t.ppf(1.0 - alpha / 2., dof)
     upper = []
     lower = []
-    # case specific: freundlich
-    if isoName == 'freundlich':
-        # the upper and lower freundlich confidence interval
-        # requires the lowest and highest, respectively,
-        # possible 'n', which is the second index of popt
-        # (i indicates the confidence intrval parameter
-        # currently being calculated, i == 1 is n)
-        i = 0
-        for param, sigma in zip(popt, np.sqrt(np.diag(pcov))):
-            if i == 1:
-                if popt[0] >= 0:
-                    upper.append(param - sigma * tval)
-                    lower.append(param + sigma * tval)
-                if popt[0] < 0:
-                    upper.append(param + sigma * tval)
-                    lower.append(param - sigma * tval)
-            else:
-                upper.append(param + sigma * tval)
-                lower.append(param - sigma * tval)
-                i = i + 1
-        return upper, lower
-    # case general
-    else:
-        for param, sigma in zip(popt, np.sqrt(np.diag(pcov))):
-            upper.append(param + sigma * tval)
-            lower.append(param - sigma * tval)
-        return upper, lower
+    for param, sigma in zip(popt, np.sqrt(np.diag(pcov))):
+        upper.append(param + sigma * tval)
+        lower.append(param - sigma * tval)
+    return upper, lower
+
+
+# Monte Carlo simulation confidence interval calculation
+def _reg_conf_monte(xdata, alpha, popt, pcov, func,
+                    seed=time.gmtime(), sim=1000):
+    random.seed(seed)
+    popt_sigma = np.sqrt(np.diag(pcov))
+    sim_list = []
+    for i in range(1, sim):
+        ydata_sim = []
+        for x in xdata:
+            sim_var = []
+            for mu, sigma in zip(popt, popt_sigma):
+                sim_var.append(random.gauss(mu, sigma))
+            ydata_sim.append(func(x, *sim_var))
+        sim_popt, sim_pcov = curve_fit(func, xdata, ydata_sim, popt)
+        sim_list.append((sim_popt, func(max(xdata), *sim_popt)))
+    sorted_sim_list = sorted(sim_list, key=lambda x: x[1])
+    half_sim_alpha = int(math.ceil(alpha * sim / 2))
+    del sorted_sim_list[0:half_sim_alpha]
+    del sorted_sim_list[-1:-half_sim_alpha]
+    return sorted_sim_list[0][0], sorted_sim_list[-1][0]
+
+
+# Monte Carlo simulation prediction interval calculation
+def _reg_pred_monte():
+    pass
 
 
 # check if regression is statistically different from zero
