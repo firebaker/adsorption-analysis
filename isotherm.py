@@ -1,7 +1,7 @@
 """isotherm.py"""
 
 # Python standard library modules and functions
-from abc import ABCMeta, abstractmethod, abstractproperty
+from abc import ABCMeta, abstractmethod
 
 # Third party modules and functions
 import numpy as np
@@ -17,24 +17,39 @@ class Isotherm(object):
     data and return pertinent results of the fitted isotherm -
     Isotherm objects.
 
-    Isotherm objects have the following attributes:
-        "Attribute existence is conditional - see code"
+    Private class attributes:
+    __isoName: string; isotherm name
+    __isoVars: list of string; isotherm variables names
+    __isoDefault: list of int; isotherm default input variables
+    __Isotherm(): float64; returns output of isotherm equation
+    __IsoConf(): returns upper and lower confidence interval for
+                 the best fit calculated isotherm to the data
+    __IsoPred(): NotImplemented
+
+    Public isotherm object attributes:
+    ***Note: Attribute existence is conditional - see code
     data: A 2-array list of user data input; should be numeric;
           data[0] represents mobile phase analyte concentration;
           data[1] represents imobile phase analyte concentration
-    alpha:  # TODO
-    error:  # TODO
-    userWarning:  # TODO
-    popt0: # TODO
-    popt:  # TODO
-    pcov:  # TODO
-    conf_upper:  # TODO
-    conf_lower:  # TODO
-    pred_upper  # TODO
-    pred_lower:  # TODO
-    SSR:  # TODO
-    AIC:  # TODO
-    BIC:  # TODO
+    alpha: A float (0.0-1.0), represents alpha level for subsequent
+           calculations
+    error: Either False, a string, or a list of strings. If it evaluates
+           to True, further calculations cease to occur
+    popt0: The initial values for scipy.optimize.curve_fit functions
+    userWarning:  A non-interrupting user warning. Either False or a
+                  string. Currently used only to convey to the user
+                  warnings concerning the user's designated popt0. If it
+                  evaluates to TRUE, default popt0 values are used.
+    popt:  Best fit popt values determined by scipy.optimize.curve_fit
+    pcov:  popt covariance matrix determined by
+           scipy.optimize.curve_fit
+    conf_upper:  Upper confidence interval popt values
+    conf_lower:  Lower confidence interval popt values
+    pred_upper:  Upper prediction interval popt values
+    pred_lower:  Lower prediction interval popt values
+    SSR:  Sum of squared Residuals for best fit curve
+    AIC:  Akiake information criterion for best fit curve
+    BIC:  Bayesian information criterion for best fit curve
     """
 
     __metaclass__ = ABCMeta
@@ -92,7 +107,7 @@ class Isotherm(object):
         # self.BIC
 
     @abstractmethod
-    def __Isotherm(self):
+    def __Isotherm():
         """Should return output of isotherm equation
         (e.g. for Langmuir - return Qmax * Kl * x / (1 + Kl * x))
         (ex. see clases Linear, Freundlich, and Langmuir)
@@ -124,9 +139,37 @@ class Linear(Isotherm):
     __isoVars = ["Kd"]
     __isoDefault = [1.0]
 
-    def __Isotherm(self):
+    def __Isotherm(x, Kd):
         return Kd * x
 
     def __IsoConf(self):
         return sts._reg_conf_asym(
+            self.data[0], self.alpha, self.popt, self.pcov)
+
+
+class Freundlich(Isotherm):
+
+    __isoName = "Freundlich"
+    __isoVars = ["Kf, n"]
+    __isoDefault = [1, 1]
+
+    def __Isotherm(x, Kf, n):
+        return Kf * x ** (1 / n)
+
+    def __IsoConf(self):
+        return sts._reg_conf_monte(
+            self.data[0], self.alpha, self.popt, self.pcov)
+
+
+class Langmuir(Isotherm):
+
+    __isoName = "Langmuir"
+    __isoVars = ["Qmax, Kl"]
+    __isoDefault = [1, 1]
+
+    def __Isotherm(x, Qmax, Kl):
+        return Qmax * Kl * x / (1 + Kl * x)
+
+    def __IsoConf(self):
+        return sts._reg_conf_monte(
             self.data[0], self.alpha, self.popt, self.pcov)

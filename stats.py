@@ -1,5 +1,9 @@
 """ statstical functions """
 
+
+# Python standard library modules and functions
+from operator import itemgetter
+
 # third party modules
 import random
 import time
@@ -59,10 +63,10 @@ def _reg_conf_monte(xdata, alpha, popt, pcov, func,
     for i in range(1, sim):
         ydata_sim = []
         for x in xdata:
-            sim_var = []
+            sim_popt = []
             for mu, sigma in zip(popt, popt_sigma):
-                sim_var.append(random.gauss(mu, sigma))
-            ydata_sim.append(func(x, *sim_var))
+                sim_popt.append(random.gauss(mu, sigma))
+            ydata_sim.append(func(x, *sim_popt))
         sim_popt, sim_pcov = curve_fit(func, xdata, ydata_sim, popt)
         sim_list.append((sim_popt, func(max(xdata), *sim_popt)))
     sorted_sim_list = sorted(sim_list, key=lambda x: x[1])
@@ -73,8 +77,20 @@ def _reg_conf_monte(xdata, alpha, popt, pcov, func,
 
 
 # Monte Carlo simulation prediction interval calculation
-def _reg_pred_monte():
-    pass
+def _reg_pred_monte(xdata, alpha, popt, pcov, func,
+                    seed=time.gmtime(), sim=1000):
+    random.seed(seed)
+    popt_sigma = np.sqrt(np.diag(pcov))
+    sim_data = []
+    for simulated in range(1, sim):
+        for x in xdata:
+            sim_popt = []
+            for mu, sigma in zip(popt, popt_sigma):
+                sim_popt.append(random.gauss(mu, sigma))
+            y_sim = func(x, *sim_popt)
+            y_sim_mu = y_sim / func(x, *popt)
+            sim_data.append([x, y_sim, y_sim_mu])
+    sim_data.sort(key=itemgetter(2))
 
 
 # check if regression is statistically different from zero

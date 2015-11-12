@@ -18,7 +18,7 @@ def linearIsotherm(x, Kd):
 
 # Freundlich isotherm equation
 def freundlichIsotherm(x, Kf, n):
-    return Kf * x**(1/n)
+    return Kf * x ** (1 / n)
 
 
 # Langmuir isotherm equation
