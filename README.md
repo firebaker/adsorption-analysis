@@ -1,15 +1,24 @@
 # adsorption-analysis
-Adsorption-anlysis provides tools to analyze experimental adsorption results
+adsorption-anlysis provides tools to analyze experimental adsorption results.
+
+11/16/15 - Things are working with outside module calls in an OOP fashion. 
+
+11/13/15 - We're switching from a script based approach to an OOP based approach. Things have become buggy, and the feature list is out of date.
 
 Current Features List:
-- fit linear, freundlich, or langmuir isotherm to an experimental dataset using scipy.optimize.curve_fit; returns dictionary with popt, pcov, SSR (sum of squared residuals), and confidence interval (alpha dependent), or warning if unable to fit isotherm; initial parameters -> "1" if not declared, alpha -> 0.05 (conf intrvl = 95%)
-- use adsorptionAnalysis() to fit linear, freundlich, and langmuir in one function 
-- (optional) guessQmax() -> use to guess initial Qmax for subsequent langmuir fitting; declare "xndpts" as needed, see function
-- (optional) guessK_() -> use to guess initial K for isotherm fitting, see function
-- fit user-defined isotherm; see function
+- fit linear, freundlich, and/or langmuir isotherm to an experimental dataset using scipy.optimize.curve_fit;
 
-CAUTIONARY DISCLAIMER: Currently confidence intervals are produced through regression-covariance analysis. Any errors in the confidence intervals results in loss of that particular isotherm.  Outliers may be the cause of errrors, or poor fit. It is recommended to do outlier analysis before fitting.
+- adsorption.AdsorptionAnlysis(data, alpha) returns a sample object of the currently implemented best fit isotherms. (linear, freundlich, langmuir)
+ isotherm attributes include:
+ isotherm.pop0 - initial parameters for scipy.curvefit()
+ isotherm.popt - output parameters from scipy.curvefit()
+ isotherm.pcov - output covariance matrix from scipy.curvefit()
+ isotherm.conf_upper - upper confidence interval parameters
+ isotherm.conf_lower - lower confidence interval parameters
+ # isotherm.pred_upper (not implemented yet)
+ # isotherm.pred_lower (not implemented yet)
+ isotherm.SSR - Sum of Squared Residuals
+ isotherm.AIC - Akiake Information Criterion
+ isotherm.BIC - Baysian Information Criterion
 
-TODO List:
-- modifty the creating of confidence intervals from regression-covariance analysis to a bootstrapping analysis to help with outlier analysis
-- create function to plot isotherms and confidence intervals
+- isotherm.py contains the base class from which to build isotherm calculation functions, incase the currently included isotherms are not suffience for you, i.e. you can build your own (see code)

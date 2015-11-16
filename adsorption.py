@@ -4,7 +4,7 @@
 import numpy as np
 
 # adsorption-analysis modules
-from . import isotherm
+import isotherm
 from validate import validateInput, checkBehavior
 
 

@@ -40,12 +40,9 @@ def validateData(data):
 
 def validateAlpha(alpha):
     errorList = []
-    if len(alpha) != 1:
+    if not isinstance(alpha, (int, long, float, complex)):
         return errorList.append(
             'AlphaInputError: alpha must be a single numeric value')
-    if not validateNumeric(alpha):
-        return errorList.append(
-            'AlphaInputError: alpha must be numeric')
     if alpha < 0 or alpha > 1:
         errorList.append(
             'AlphaInputError: 0 < alpha < 1 is not true')
