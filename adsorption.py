@@ -52,7 +52,7 @@ class AdsorptionAnalysis(object):
     """
 
     def __init__(
-            self, data, alpha=0.05,
+            self, data, alpha=0.05, better_k=False,
             linear=None, freundlich=None, langmuir=None):
         self.data = data
         self.alpha = alpha
@@ -70,11 +70,33 @@ class AdsorptionAnalysis(object):
         self.langmuir = isotherm.Langmuir(
             self.data, self.alpha, langmuir, requireInputValidation=False)
 
-    def bestfit(self, selection="AIC"):
-        """Return the isotherm with the lowest selection criteria values.
+    def better_init_k(self):
+        NotImplementedError
+
+    def bestfit(self, selection="SSR"):
+        """Return the isotherm with the lowest selection criteria value.
         Selection criteria may be:
-        AIC: Akaike information criterion (default)
+        AIC: Akaike information criterion
         BIC: Bayesian information criterion
-        SSR: Sum of squared residuals
+        SSR: Sum of squared residuals (default)
         """
-        # TODO
+        if self.error:
+            return "unable to compute bestfit isotherm;\
+                   check self.error for more information"
+
+        # initialize vars with linear isotherm
+        iso = 'linear'
+        slctn_val = getattr(self.linear, selection)
+        popt = self.linear.popt
+
+        # compare Linear bestfit to other isotherms
+        isotherms = [self.freundlich, self.langmuir]
+        for _iso in isotherms:
+            if _iso.error:
+                continue
+            _iso_slctn_val = getattr(_iso, selection)
+            if _iso_slctn_val < slctn_val:
+                iso = _iso._isoName
+                slctn_val = _iso_slctn_val
+                popt = _iso.popt
+        return iso, popt

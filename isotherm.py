@@ -6,13 +6,14 @@ from abc import ABCMeta, abstractmethod
 # Third party modules and functions
 import numpy as np
 from scipy.optimize import curve_fit
+# from lmfit import minimize, Parameters, Parameter, report_fit
 
 # adsorption-analysis modules
 from validate import *
 import stats as sts
 
 
-class Isotherm(object):
+class Isotherm(metaclass=ABCMeta):
     """An abstract base class of functions to fit isotherms to
     data and return pertinent results of the fitted isotherm -
     Isotherm objects.
@@ -52,8 +53,6 @@ class Isotherm(object):
     BIC:  Bayesian information criterion for best fit curve
     """
 
-    __metaclass__ = ABCMeta
-
     # __isoName should be the name of the isotherm
     _isoName = NotImplementedError
 
@@ -66,13 +65,14 @@ class Isotherm(object):
     def __init__(
             self, data, alpha=0.05, popt0User=None,
             requireInputValidation=True):
+        self.error = False
         if requireInputValidation:
             self.data = data
             self.alpha = alpha
             self.error = validateInput(self.data, self.alpha)
             if self.error:
                 return None
-            self.data = [np.float64(data[0]), np.float64(data[1])]
+            data = self.data = [np.float64(data[0]), np.float64(data[1])]
             self.behavior, self.error = checkBehavior(data, alpha)
             if self.behavior != 'REMOVAL':
                 return None
@@ -81,48 +81,55 @@ class Isotherm(object):
             self.userWarning, self.popt0 = validate_popt0User(
                 self.popt0User, self._isoVars, self._isoDefault)
         else:
-            self.userWarning = """popt0User is set to None;
-            popt0 was set to the default values: {0}""".format(
-                self._isoDefault)
+            self.userWarning = "popt0User is set to None;\
+            popt0 initialized with default values:\
+            {0} = {1}".format(self._isoVars, self._isoDefault)
             self.popt0 = self._isoDefault
+
+        # Curve_fit Method for curve fitting
         """firebaker - 8/12/15: I like curve_fit, but I ultimately do
         not know what is happening (or why it would break), therefore
         the try/catch statement"""
         try:
             self.popt, self.pcov = curve_fit(
-                self._Isotherm, data[0], data[1], self.popt0)
+                self._Isotherm, xdata=data[0],
+                ydata=data[1], p0=self.popt0)
             """firebaker - 8/14/15: some situations arise where Inf
             (NaN in a numpy array) is returned, therefore
             check_for_NaN"""
             check_for_NaN(self.popt)
         except:
-            self.error = 'unable to fit %s isotherm'.format(
-                self._isoName)
+            self.error = 'unable to fit {0} isotherm'.format(self._isoName)
             return None
-        self.conf_upper, self.conf_lower = _isoConf
-        # self.pred_upper, self.pred_lower =
+        self.conf = self._IsoConf(data, alpha)
+        #
+
+        # self.pred=
         self.SSR = sts._regSSR(
-            self._Isotherm(), self.data[0], self.data[1], self.popt)
+            self._Isotherm, data[0], data[1], self.popt)
         self.AIC = sts._regAIC(
-            self.Isotherm, self.data[0], self.data[1], self.popt)
+            self._Isotherm, data[0], data[1], self.popt)
         # self.BIC
 
+    # def _isotherm2min(self, params, xdata, ydata):
+    #     """ model results, subtract observed results
+    #     """
+    #     iso_vars = params.valuesdict()
+    #     model = np.array()
+    #     for x in xdata:
+    #         np.array.append(self._Isotherm(x, *iso_vars))
+    #     return model - ydata
+
     @abstractmethod
-    def _Isotherm():
-        """Should return output of isotherm equation
-        (e.g. for Langmuir - return Qmax * Kl * x / (1 + Kl * x))
-        (ex. see clases Linear, Freundlich, and Langmuir)
+    def _Isotherm(self):
+        """ isotherm equation
         """
         raise NotImplementedError
 
     @abstractmethod
     def _IsoConf(self):
-        """Should return upper and lower confidence interval for
-        the best fit calculated isotherm to the data
-        (e.g. for Linear - return sts._reg_conf_asym(
-        self.data[0], self.alpha, self.popt, self.pcov)
-        (e.g. for Freundlich & Langmuir - return sts._reg_conf_monte(
-        self.data[0], self.alpha, self.popt, self.pcov, self._Isotherm)
+        """ calculate the confidence interval of the best fit isotherm equation
+        returns upper and lower confidence interval
         """
         raise NotImplementedError
 
@@ -137,41 +144,41 @@ class Isotherm(object):
 
 class Linear(Isotherm):
 
-    _isoName = "Linear"
+    _isoName = "linear"
     _isoVars = ["Kd"]
-    _isoDefault = [1.0]
+    _isoDefault = [1]
 
-    def _Isotherm(x, Kd):
+    def _Isotherm(self, x, Kd):
         return Kd * x
 
-    def _IsoConf(self):
+    def _IsoConf(self, data, alpha):
         return sts._reg_conf_asym(
-            self.data[0], self.alpha, self.popt, self.pcov)
+            data[0], alpha, self.popt, self.pcov)
 
 
 class Freundlich(Isotherm):
 
-    _isoName = "Freundlich"
+    _isoName = "freundlich"
     _isoVars = ["Kf, n"]
     _isoDefault = [1, 1]
 
-    def _Isotherm(x, Kf, n):
+    def _Isotherm(self, x, Kf, n):
         return Kf * x ** (1 / n)
 
-    def _IsoConf(self):
+    def _IsoConf(self, data, alpha):
         return sts._reg_conf_monte(
-            self.data[0], self.alpha, self.popt, self.pcov)
+            self._Isotherm, data[0], alpha, self.popt, self.pcov)
 
 
 class Langmuir(Isotherm):
 
-    _isoName = "Langmuir"
+    _isoName = "langmuir"
     _isoVars = ["Qmax, Kl"]
     _isoDefault = [1, 1]
 
-    def _Isotherm(x, Qmax, Kl):
+    def _Isotherm(self, x, Qmax, Kl):
         return Qmax * Kl * x / (1 + Kl * x)
 
-    def _IsoConf(self):
+    def _IsoConf(self, data, alpha):
         return sts._reg_conf_monte(
-            self.data[0], self.alpha, self.popt, self.pcov)
+            self._Isotherm, data[0], alpha, self.popt, self.pcov)

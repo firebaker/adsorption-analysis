@@ -51,15 +51,18 @@ def _reg_conf_asym(xdata, alpha, popt, pcov):
     for param, sigma in zip(popt, np.sqrt(np.diag(pcov))):
         upper.append(param + sigma * tval)
         lower.append(param - sigma * tval)
-    return upper, lower
+    return {'method': 'asymptotic',
+            'upper': upper,
+            'lower': lower}
 
 
 # Monte Carlo simulation confidence interval calculation
-def _reg_conf_monte(xdata, alpha, popt, pcov, func,
+def _reg_conf_monte(func, xdata, alpha, popt, pcov,
                     seed=time.gmtime(), sim=1000):
     random.seed(seed)
     popt_sigma = np.sqrt(np.diag(pcov))
     sim_list = []
+    simulations_failed = 0
     for i in range(1, sim):
         ydata_sim = []
         for x in xdata:
@@ -67,13 +70,21 @@ def _reg_conf_monte(xdata, alpha, popt, pcov, func,
             for mu, sigma in zip(popt, popt_sigma):
                 sim_popt.append(random.gauss(mu, sigma))
             ydata_sim.append(func(x, *sim_popt))
-        sim_popt, sim_pcov = curve_fit(func, xdata, ydata_sim, popt)
-        sim_list.append((sim_popt, func(max(xdata), *sim_popt)))
+        try:
+            sim_popt, sim_pcov = curve_fit(func, xdata, ydata_sim, popt)
+            sim_list.append((sim_popt, func(max(xdata), *sim_popt)))
+        except:
+            simulations_failed += 1
+            continue
     sorted_sim_list = sorted(sim_list, key=lambda x: x[1])
     half_sim_alpha = int(math.ceil(alpha * sim / 2))
     del sorted_sim_list[0:half_sim_alpha]
     del sorted_sim_list[-1:-half_sim_alpha]
-    return sorted_sim_list[0][0], sorted_sim_list[-1][0]
+    total_sims = sim - simulations_failed
+    return {'method': 'Monte Carlo',
+            'upper': sorted_sim_list[0][0],
+            'lower': sorted_sim_list[-1][0],
+            'total_simulations': total_sims}
 
 
 # Monte Carlo simulation prediction interval calculation

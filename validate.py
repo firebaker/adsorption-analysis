@@ -15,10 +15,10 @@ import stats as sts
 def validateNumeric(item):
     if hasattr(item, '__iter__'):
         for val in item:
-            if not isinstance(val, (int, long, float, complex)):
+            if not isinstance(val, (int, float, complex)):
                 return False
     else:
-        if not isinstance(item, (int, long, float, complex)):
+        if not isinstance(item, (int, float, complex)):
             return False
     return True
 
@@ -40,7 +40,7 @@ def validateData(data):
 
 def validateAlpha(alpha):
     errorList = []
-    if not isinstance(alpha, (int, long, float, complex)):
+    if not isinstance(alpha, (int, float, complex)):
         return errorList.append(
             'AlphaInputError: alpha must be a single numeric value')
     if alpha < 0 or alpha > 1:
@@ -70,11 +70,11 @@ def validate_popt0User(popt0User, isoVars, isoDefault):
 def checkBehavior(data, alpha=0.05):
     x, y = data[0], data[1]
     b_popt, b_pcov = curve_fit(sts._linReg, x, y)
-    b_upper, b_lower = sts._reg_conf_asym(y, alpha, b_popt, b_pcov)
+    conf = sts._reg_conf_asym(y, alpha, b_popt, b_pcov)
     conflict_phrase = """analyte behavior does not show adsorption occurance;
-    further computation has been terminated"""
+    further isotherm computation is terminated"""
     if sts._chk_reg_diff_zero(
-            sts._linReg, x, b_upper, b_lower):
+            sts._linReg, x, conf['upper'], conf['lower']):
         if b_popt[0] <= 0:
             return 'ADDITION', conflict_phrase
         return 'REMOVAL', False
