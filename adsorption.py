@@ -5,7 +5,7 @@ import numpy as np
 
 # adsorption-analysis modules
 import isotherm
-from validate import validateInput, checkBehavior
+import AAvalidate
 
 
 class AdsorptionAnalysis(object):
@@ -16,87 +16,83 @@ class AdsorptionAnalysis(object):
     data: A 2-array list of float64 (or convertable numeric),
           data[0] represents non-adsobed phase analyte concentration
           data[1] represents adsorbed phase analyte concentration
-    alpha: A float (0.0-1.0), represents alpha level for subsequent
-           calculations
-    linear: Initial popt0 values designated by the User; "[Kd]"
+    linear: Initial param values designated by the user; "[Kd]"
     freundlich: see linear; "[Kf, n]"
     langmuir: see langmuir; "[Qmax, Kl]"
 
     Sample attributes:
         data: see input arguments
-        alpha: see input arguments
         error: Either FALSE, a string, or a list of strings. If it
                evaluates to TRUE further calculations cease to occur.
-        ***isotherm: This is an abstract base class for isotherm objects.
-                     In other words, this attribute doesn't exist as an
-                     explicit object, instead it acts as a parent class
-                     for the real isotherm objects (e.g. linear,
-                     freundlich, langmuir). Isotherm objects contain
-                     pertinent attributes of the fitted isotherm object:
-        *** see isotherm.py for detailed explanation of isotherm
-            attributes
-        *** Isotherm attributes:
-                isotherm.pop0
-                isotherm.popt
-                isotherm.pcov
-                isotherm.conf_upper
-                isotherm.conf_lower
-                isotherm.pred_upper
-                isotherm.pred_lower
-                isotherm.SSR
-                isotherm.AIC
-                isotherm.BIC
-        linear: see *isotherm
-        freundlich: see *isotherm
-        langmuir: see *isotherm
+        Isotherm: abstract base calss for child Isotherm classes
+            Isotherm attributes:
+                isotherm.params (see isotherm.py)
+                isotherm.userParams (see isotherm.py)
+                isotherm.userWarning (see isotherm.py)
+                isotherm.minimizedFit (see isotherm.py)
+                isotherm.modelValidity (see isotherm.py)
+                isotherm.modelValidtyMsg (see isotherm.py)
+        Linear: see Isotherm
+        Freundlich: see Isotherm
+        Langmuir: see Isotherm
+
+    Sample Method:
+        bestfit(): method to determine the best fit isotherm;
+                   can use chisqr, aic, or bic selection criteria
     """
 
     def __init__(
-            self, data, alpha=0.05, better_k=False,
+            self, data,
             linear=None, freundlich=None, langmuir=None):
         self.data = data
-        self.alpha = alpha
-        self.error = validateInput(self.data, self.alpha)
+        self.error = AAvalidate.validateInput(self.data)
         if self.error:
             return None
         self.data = [np.float64(data[0]), np.float64(data[1])]
-        self.behavior, self.error = checkBehavior(data, alpha)
-        if self.behavior != 'REMOVAL':
+        self.Linear = isotherm.Linear(
+            self.data, linear, validateInput=False)
+        if not self.Linear.modelValidity:
+            msg = """invalid linear fit;
+            To force a {0} model fit,
+            call isotherm.{0}() explicitly"""
+            self.Freundlich = msg.format("Freundlich")
+            self.Langmuir = msg.format("Langmuir")
             return None
-        self.linear = isotherm.Linear(
-            self.data, self.alpha, linear, requireInputValidation=False)
-        self.freundlich = isotherm.Freundlich(
-            self.data, self.alpha, freundlich, requireInputValidation=False)
-        self.langmuir = isotherm.Langmuir(
-            self.data, self.alpha, langmuir, requireInputValidation=False)
+        self.Freundlich = isotherm.Freundlich(
+            self.data, freundlich, validateInput=False)
+        self.Langmuir = isotherm.Langmuir(
+            self.data, langmuir, validateInput=False)
 
-    def better_init_k(self):
-        NotImplementedError
-
-    def bestfit(self, selection="SSR"):
+    def bestfit(self, selection="aic"):
         """Return the isotherm with the lowest selection criteria value.
         Selection criteria may be:
-        AIC: Akaike information criterion
-        BIC: Bayesian information criterion
-        SSR: Sum of squared residuals (default)
+        chisqr: sum((residuals array) ** 2)
+        aic: Akaike information criterion - (default)
+        bic: Bayesian information criterion
         """
+
+        # check for sample isotherm fitting errors
+        error_msg = "unable to compute bestfit isotherm"
         if self.error:
-            return "unable to compute bestfit isotherm;\
-                   check self.error for more information"
+            return error_msg.append("\
+                check self.error for more information")
+        if not self.Linear.modelValidity:
+            return error_msg.append("\
+                check self.Linear.modelValidtyMsg for more information")
 
-        # initialize vars with linear isotherm
-        iso = 'linear'
-        slctn_val = getattr(self.linear, selection)
-        popt = self.linear.popt
+        # initialize selection with linear isotherm
+        isotherm = 'Linear'
+        slctn_val = getattr(self.Linear.minimizedFit, selection)
+        params = self.Linear.minimizedFit.params
 
-        # compare Linear bestfit to other isotherms
-        isotherms = [self.freundlich, self.langmuir]
-        for _iso in isotherms:
-            if _iso.error:
+        # compare linear fit to other isotherm fits
+        isotherms = [self.Freundlich, self.Langmuir]
+        for iso in isotherms:
+            if not iso.modelValidity:
                 continue
-            _iso_slctn_val = getattr(_iso, selection)
-            if _iso_slctn_val < slctn_val:
-                iso = _iso._isoName
-                slctn_val = _iso_slctn_val
-                popt = _iso.popt
-        return iso, popt
+            iso_slctn_val = getattr(iso.minimizedFit, selection)
+            if iso_slctn_val < slctn_val:
+                isotherm = iso.__name__
+                slctn_val = iso_slctn_val
+                params = iso.minimizedFit.params
+        return isotherm, params
