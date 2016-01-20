@@ -12,7 +12,7 @@ from lmfit import minimize
 import AAvalidate as val
 
 #Error Handler Class
-class Error_Hanlder:
+class Error_Handler:
     errorcount = 0
     def __init__(self, param, error_message):
         self.paramter = param
@@ -20,6 +20,9 @@ class Error_Hanlder:
         Error_Handler.errorcount += 1
         self.message = error_message
         self.description = "This class handles the errors in the lmfit routines. "
+        
+        # getNumberofErrors returns the number of errors collected.
+        
     def getNumberofErrors(self):
         return Error_Handler.errorcount
     
@@ -70,6 +73,7 @@ class Isotherm(metaclass=ABCMeta):
         #
         #
         self.NumberofParameters = 0
+        self.NumberofErrors = 0
         self.Error_List = []
         
         # validate/initialize user parameters
@@ -165,7 +169,7 @@ class Linear(Isotherm):
     @staticmethod    
     def ValidateFit(params):
         Error_List=[]
-        
+        NumberofErrors = 0
         paramvals = params.valuesdict()
         Kd = paramvals['Kd']
         
@@ -173,7 +177,7 @@ class Linear(Isotherm):
            Error_List.add(Error_Handler(1, """ best fit Kd = {0};
                 Linear adsorption theory requires Kd > 0
                 """.format(Kd)))
-       
+           NumberofErrors +=1
        
 
 
@@ -206,6 +210,7 @@ class Freundlich(Isotherm):
     def ValidateFit(params):
         # clear error list
         ErrorList=[]
+        NumberofErrors=0
         message = None
         message_list = []
         paramvals = params.valuesdict()
@@ -216,10 +221,12 @@ class Freundlich(Isotherm):
              Error_List.add(Error_Handler(1,""" best fit Kf = {0};
             Freundlich adsorption theory requires Kf > 0
             """.format(Kf)))
+            NumberofErrors +=1
         if n < 1:
             Error_List.add(Error_Handler(2,""" best fit n = {0};
             Freundlich adsorption theory requires n >= 1
             """.format(n)))
+            NumberofErrors +=1
         
 
 
@@ -251,6 +258,7 @@ class Langmuir(Isotherm):
     def ValidateFit(params):
        # clear error list
         ErrorList=[]
+        NumberofErrors=0
         paramvals = params.valuesdict()
         Qmax = paramvals['Qmax']
         Kl = paramvals['Kl']
@@ -258,9 +266,11 @@ class Langmuir(Isotherm):
             Error_List.add(Error_Handler(1,""" best fit Qmax = {0};
             Langmuir adsorption theory requires Qmax > 0
             """.format(Qmax)))
+            NumberofErrors +=1
         if Kl <= 0:
             Error_List.add(Error_Handler(2,""" best fit Kl = {0};
             Langmuir adsorption theory requires Kl > 0
             """.format(Kl)))
+            NumberofErrors +=1
        
        
