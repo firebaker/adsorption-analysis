@@ -11,6 +11,18 @@ from lmfit import minimize
 # adsorption-analysis modules
 import AAvalidate as val
 
+#Error Handler Class
+class Error_Hanlder:
+    errorcount = 0
+    def __init__(self, param, error_message):
+        self.paramter = param
+        self.error = true
+        Error_Handler.errorcount += 1
+        self.message = error_message
+        self.description = "This class handles the errors in the lmfit routines. "
+    def getNumberofErrors(self):
+        return Error_Handler.errorcount
+    
 
 class Isotherm(metaclass=ABCMeta):
     """An abstract base class of functions to fit isotherms to
@@ -55,6 +67,11 @@ class Isotherm(metaclass=ABCMeta):
             data = self.data
         # initialize parameters
         self.params = self.InitParams()
+        #
+        #
+        self.NumberofParameters = 0
+        self.Error_List = []
+        
         # validate/initialize user parameters
         self.userParams = userParams
         self.userWarning = "parameters initialized with default values"
@@ -135,6 +152,7 @@ class Linear(Isotherm):
     def MinimizeFunc(params, x, y):
         paramvals = params.valuesdict()
         Kd = paramvals['Kd']
+        NumberofParameters = 1
         model = Linear.IsothermFunc(x=x, Kd=Kd)
         return model - y
 
@@ -146,13 +164,17 @@ class Linear(Isotherm):
 
     @staticmethod    
     def ValidateFit(params):
+        Error_List=[]
+        
         paramvals = params.valuesdict()
         Kd = paramvals['Kd']
+        
         if Kd <= 0:
-            return False, """ best fit Kd = {0};
+           Error_List.add(Error_Handler(1, """ best fit Kd = {0};
                 Linear adsorption theory requires Kd > 0
-                """.format(Kd)
-        return True, None
+                """.format(Kd)))
+       
+       
 
 
 class Freundlich(Isotherm):
@@ -175,34 +197,30 @@ class Freundlich(Isotherm):
     @staticmethod
     def InitParams():
         params = lmfit.Parameters()
+        NumberofParameters=2
         params.add('Kf', value=1)
         params.add('n', value=1)
         return params
 
     @staticmethod
     def ValidateFit(params):
-        validModel = True
+        # clear error list
+        ErrorList=[]
         message = None
         message_list = []
         paramvals = params.valuesdict()
         Kf = paramvals['Kf']
         n = paramvals['n']
         if Kf <= 0:
-            validModel = False
-            message_list.append(""" best fit Kf = {0};
+           
+             Error_List.add(Error_Handler(1,""" best fit Kf = {0};
             Freundlich adsorption theory requires Kf > 0
-            """.format(Kf))
+            """.format(Kf)))
         if n < 1:
-            validModel = False
-            message_list.append(""" best fit n = {0};
+            Error_List.add(Error_Handler(2,""" best fit n = {0};
             Freundlich adsorption theory requires n >= 1
-            """.format(n))
-        if message_list:
-            if len(message_list) > 1:
-                message = message_list
-            else:
-                message = message_list[0]
-        return validModel, message
+            """.format(n)))
+        
 
 
 class Langmuir(Isotherm):
@@ -224,31 +242,25 @@ class Langmuir(Isotherm):
     @staticmethod
     def InitParams():
         params = lmfit.Parameters()
+        NumberofParameters = 2
         params.add('Qmax', value=1.0)
         params.add('Kl', value=1.0)
         return params
 
     @staticmethod
     def ValidateFit(params):
-        validModel = True
-        message = None
-        message_list = []
+       # clear error list
+        ErrorList=[]
         paramvals = params.valuesdict()
         Qmax = paramvals['Qmax']
         Kl = paramvals['Kl']
         if Qmax <= 0:
-            validModel = False
-            message_list.append(""" best fit Qmax = {0};
+            Error_List.add(Error_Handler(1,""" best fit Qmax = {0};
             Langmuir adsorption theory requires Qmax > 0
-            """.format(Qmax))
+            """.format(Qmax)))
         if Kl <= 0:
-            validModel = False
-            message_list.append(""" best fit Kl = {0};
+            Error_List.add(Error_Handler(2,""" best fit Kl = {0};
             Langmuir adsorption theory requires Kl > 0
-            """.format(Kl))
-        if message_list:
-            if len(message_list) > 1:
-                message = message_list
-            else:
-                message = message_list[0]
-        return validModel, message
+            """.format(Kl)))
+       
+       
