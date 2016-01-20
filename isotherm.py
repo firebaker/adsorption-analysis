@@ -12,19 +12,17 @@ from lmfit import minimize
 import AAvalidate as val
 
 #Error Handler Class
+# this will store the errors within the class - no need to return values from validation routine.
+
 class Error_Handler:
-    errorcount = 0
+   
     def __init__(self, param, error_message):
         self.paramter = param
         self.error = true
-        Error_Handler.errorcount += 1
-        self.message = error_message
+        self.errormessage_textexplanation = error_message
         self.description = "This class handles the errors in the lmfit routines. "
         
-        # getNumberofErrors returns the number of errors collected.
-        
-    def getNumberofErrors(self):
-        return Error_Handler.errorcount
+     
     
 
 class Isotherm(metaclass=ABCMeta):
