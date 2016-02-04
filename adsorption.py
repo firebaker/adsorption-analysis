@@ -41,8 +41,7 @@ class AdsorptionAnalysis(object):
                    can use chisqr, aic, or bic selection criteria
     """
 
-    def __init__(
-            self, data,
+    def __init__(self, data, alpha=0.05,
             linear=None, freundlich=None, langmuir=None):
         self.data = data
         self.error = AAvalidate.validateInput(self.data)
@@ -50,7 +49,7 @@ class AdsorptionAnalysis(object):
             return None
         self.data = [np.float64(data[0]), np.float64(data[1])]
         self.Linear = isotherm.Linear(
-            self.data, linear, validateInput=False)
+            self.data, alpha=alpha, userParams=linear, validateInput=False)
         if not self.Linear.modelValidity:
             msg = """invalid linear fit;
             To force a {0} model fit,
@@ -59,9 +58,9 @@ class AdsorptionAnalysis(object):
             self.Langmuir = msg.format("Langmuir")
             return None
         self.Freundlich = isotherm.Freundlich(
-            self.data, freundlich, validateInput=False)
+            self.data, alpha=alpha, userParams=freundlich, validateInput=False)
         self.Langmuir = isotherm.Langmuir(
-            self.data, langmuir, validateInput=False)
+            self.data, alpha=alpha, userParams=langmuir, validateInput=False)
 
     def bestfit(self, selection="aic"):
         """Return the isotherm with the lowest selection criteria value.
@@ -83,10 +82,10 @@ class AdsorptionAnalysis(object):
         # initialize selection with linear isotherm
         isotherm = 'Linear'
         slctn_val = getattr(self.Linear.minimizedFit, selection)
-        params = self.Linear.minimizedFit.params
 
         # compare linear fit to other isotherm fits
         isotherms = [self.Freundlich, self.Langmuir]
+#         isotherms = [self.Langmuir]
         for iso in isotherms:
             if not iso.modelValidity:
                 continue
@@ -94,5 +93,4 @@ class AdsorptionAnalysis(object):
             if iso_slctn_val < slctn_val:
                 isotherm = iso.__name__
                 slctn_val = iso_slctn_val
-                params = iso.minimizedFit.params
-        return isotherm, params
+        return isotherm

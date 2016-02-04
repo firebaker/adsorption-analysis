@@ -6,30 +6,44 @@ from abc import ABCMeta, abstractmethod
 # Third party modules and functions
 import numpy as np
 import lmfit
-from lmfit import minimize
 
 # adsorption-analysis modules
 import AAvalidate as val
+import AAstats
 
 
 class Isotherm(metaclass=ABCMeta):
-    """An abstract base class of functions to fit isotherms to
-    data and return fitted isotherm results.
+    """An abstract base class of isotherm fitting functions.
 
     Arguments:
     data: A 2-array list of float64 (or convertable numeric),
-          data[0] represents non-adsobed phase analyte concentration
-          data[1] represents adsorbed phase analyte concentration
+        * data[0] represents non-adsobed phase analyte concentration
+        * data[1] represents adsorbed phase analyte concentration
+    alpha: # TODO
     userParams: Initial param values designated by the user;
-                see individual isotherm classes for specific params
+        * see child isotherm classes for specific params
+    fitMethod: Either a str or a list of strs, that are used in sequential
+        order to fit and refit data (see note below for an explanation of
+        the default values and why sequential refitting may be useful); 
+        * Values must enumerate with what is avaliable in the lmfit pacakge
+        algorithms for optimizing curve fits;
+        * Default value is ['nelder', 'leastsqr'];
+        *** Note: Nelder-Mead minimiztion is generally considered more robust
+        at fitting for special model cases than Levenburg-Marquardt
+        Least Squares (useful for Freundlich isotherm fitting).
+        However, lmfit's nelder method does not provide uncertainties'
+        measurements, whereas lmfit's leastsqr method does, therefore we 
+        implement Nelder-Mead first to obtain robust fits, then a subsequent
+        Levenburg-Marquardt fit is implemented to obtain the uncertainty 
+        values of the Nelder-Mead fit parameters.
+    validateInput: A boolean used to check input values;
+        * set to false if being called from AdsorptionAnalysis 
+        module since the input should already have been checked
 
     Attributes:
-    ***Note: some attributes are conditional upon "validateInput"
-    data: A 2-array list of user data input; should be numeric;
-          data[0] represents mobile phase analyte concentration;
-          data[1] represents imobile phase analyte concentration
-    error: Either False, a string, or a list of strings. If it evaluates
-           to True, further calculations cease to occur.
+    error: conditional upon "validateInput"
+        * Either False, a string, or a list of strings;
+        * If evaluating to True, further evaluation ceases
     params: initial isotherm parameters for the minimizing function
     userParams: Initial isotherm parameters given by the user
     userWarning: boolean or string; conveys to the user warnings
@@ -43,19 +57,21 @@ class Isotherm(metaclass=ABCMeta):
     modelValidtyMsg: A message relaying the cause of model validity failure
     """
 
-    def __init__(self, data, userParams=None,
-                 validateInput=True):
+    def __init__(self, data, alpha=0.05, userParams=None,
+                 fitMethod=['nelder', 'leastsqr'], validateInput=True, 
+                 confMethod='default'):
+
         # validate input
+        # TODO check alpha
+        # TODO check fitMethod
         if validateInput:
-            self.data = data
-            self.error = val.validateInput(self.data)
+            self.error = val.validateInput(data)
+            #self.error = val.validateInput(data, alpha, fitMethod)
             if self.error:
                 return None
-            self.data = [np.float_(data[0]), np.float_(data[1])]
-            data = self.data
+
         # initialize parameters
         self.params = self.InitParams()
-        # validate/initialize user parameters
         self.userParams = userParams
         self.userWarning = "parameters initialized with default values"
         if self.userParams:
@@ -65,33 +81,30 @@ class Isotherm(metaclass=ABCMeta):
                 for userParam, param in zip(
                         self.userParams, self.params):
                     self.params[param].set(value=userParam)
-        """ ***Note***
-        Nelder-Mead minimiztion is generally considered more robust
-        at fitting for special model cases than Levenburg-Marquardt
-        Least Squares (useful for Freundlich isotherm fitting).
-        However, where lmfit's leastsqr method provides uncertainties'
-        measurements, lmfit's nelder method does not, therefore we use
-        Nelder-Mead to obtain robust fits, we then use the subsequent
-        Levenburg-Marquardt fit to obtain the uncertainty values of
-        the Nelder-Mead fit parameters.
-        """
-        # fit model using Nelder-Mead minimization
-        self.nelder = minimize(
-            self.MinimizeFunc,
-            self.params,
-            kws={'x': data[0], 'y': data[1]},
-            method='nelder')
-        # fit model using Levenburg-Marquart minimization with
-        # Nelder-Mead minimization fit parameters
-        self.leastsqr = lmfit.minimize(
-            self.MinimizeFunc,
-            self.nelder.params,
-            kws={'x': data[0], 'y': data[1]},
-            method='leastsqr')
-        self.minimizedFit = self.leastsqr
+
+        # check if fitMethod is composed of multiple methods
+        # and fit isotherm
+        if hasattr(fitMethod, '__iter__'):
+            workingfit = None
+            for fit in fitMethod:
+                if workingfit:
+                    params = workingfit.params
+                else:
+                    params = self.params
+                workingfit = lmfit.minimize(self.MinimizeFunc, params,
+                                            kws={'x': data[0], 'y': data[1]},
+                                            method=fit)
+            self.minimizedFit = workingfit
+        else:
+            self.minimizedFit = lmfit.minimize(self.MinimizeFunc, self.params,
+                                            kws={'x': data[0], 'y': data[1]},
+                                            method=fitMethod)
+
         # validate fit model against isotherm theory
-        self.modelValidity, self.modelValidtyMsg = \
-            self.ValidateFit(self.leastsqr.params)
+#        self.modelValidity, self.modelValidtyMsg = \
+#            self.ValidateFit(self.minimizedFit.params)
+        self.modelValidity, self.modelValidtyMsg, self.confInterval = \
+            self.ValidateFit(data[0], alpha, confMethod)
 
     """All the methods must be made static in inherited instance
     to allow for users to call these functions in their own
@@ -122,6 +135,27 @@ class Isotherm(metaclass=ABCMeta):
         """
         raise NotImplementedError
 
+    _Asym = ['Asymptotic', 'asymptotic', 'Asym', 'asym']
+    @staticmethod
+    def IsoConfAsym(xdata, popt, pcov, alpha=0.05):
+        """Default asymptotic confidence interval calculation;
+        This may need to be modified for specific isotherms,
+        e.g. Freundlich Isotherm.
+        """
+        return AAstats.RegConfAsym(xdata, popt, pcov, alpha)
+
+    
+    _Monte = ['Monte Carlo', 'monte carlo', 'Monte', 'monte']
+    @staticmethod
+    def IsoConfMonte(xdata, popt, pcov, func=NotImplementedError, alpha=0.05,
+                     seed=123456789, sim=1000):
+        """ Default Monte Carlo confidence interval calculation;
+        This may need to be modified for specific isotherms,
+        e.g. Freundlich Isotherm.
+        """
+        return AAstats.RegConfMonte(func=func, xdata=xdata, popt=popt, pcov=pcov, alpha=alpha,
+                    seed=seed, sim=sim)
+
 
 class Linear(Isotherm):
 
@@ -143,16 +177,41 @@ class Linear(Isotherm):
         params = lmfit.Parameters()
         params.add('Kd', value=1.0)
         return params
+    
+#    @staticmethod
+#    def ValidateFit(params):
+#        paramvals = params.valuesdict()
+#        Kd = paramvals['Kd']
+#        if Kd <= 0:
+#            return False, """ best fit Kd = {0};
+#                Linear adsorption theory requires Kd > 0
+#                """.format(Kd)
+#        return True, None
 
-    @staticmethod    
-    def ValidateFit(params):
-        paramvals = params.valuesdict()
+    def ValidateFit(self, xdata, alpha=0.05, confMethod='default'):
+        paramvals = self.minimizedFit.params.valuesdict()
         Kd = paramvals['Kd']
+        # check model theory
         if Kd <= 0:
-            return False, """ best fit Kd = {0};
+            return False, """best fit Kd = {0};
                 Linear adsorption theory requires Kd > 0
-                """.format(Kd)
-        return True, None
+                """.format(Kd), None
+        # check Confidence Interval theory
+        popt = [Kd]
+        if confMethod in ['default', *self._Asym]:
+            confIntrvl = Linear.IsoConfAsym(xdata, popt, self.minimizedFit.covar, alpha)
+        elif confMethod in [*self._Monte]:
+            confIntrvl = Linear.IsoConfMonte(xdata=xdata, popt=popt, pcov=self.minimizedFit.covar, func=Linear.IsothermFunc)
+        else:
+            return False, """confMethod: {0}, is not an option""", None
+        if confIntrvl['lower'][0] < 0:
+            return False, """lower conf interval Kd = {0};
+                For the given alpha ({1}), the best fit Linear Isotherm
+                is not statistically different from zero;
+                Linear adsorption theory requires the best fit Isotherm
+                to be statistically greater than 0.
+                """.format(confIntrvl['lower'][0], alpha), confIntrvl
+        return True, None, confIntrvl
 
 
 class Freundlich(Isotherm):
@@ -179,30 +238,80 @@ class Freundlich(Isotherm):
         params.add('n', value=1)
         return params
 
-    @staticmethod
-    def ValidateFit(params):
+#    @staticmethod
+#    def ValidateFit(params, cov, alpha=0.05):
+#        validModel = True
+#        message = None
+#        message_list = []
+#        paramvals = params.valuesdict()
+#        Kf = paramvals['Kf']
+#        n = paramvals['n']
+#        if Kf <= 0:
+#            validModel = False
+#            message_list.append(""" best fit Kf = {0};
+#            Freundlich adsorption theory requires Kf > 0
+#            """.format(Kf))
+#        if n < 1:
+#            validModel = False
+#            message_list.append(""" best fit n = {0};
+#            Freundlich adsorption theory requires n >= 1
+#            """.format(n))
+#        if message_list:
+#            if len(message_list) > 1:
+#                message = message_list
+#            else:
+#                message = message_list[0]
+#        return validModel, message
+
+    def ValidateFit(self, xdata, alpha=0.05, confMethod='default'):
         validModel = True
         message = None
         message_list = []
-        paramvals = params.valuesdict()
+        paramvals = self.minimizedFit.params.valuesdict()
         Kf = paramvals['Kf']
         n = paramvals['n']
+        confIntrvl = None
         if Kf <= 0:
             validModel = False
-            message_list.append(""" best fit Kf = {0};
+            message_list.append("""best fit Kf = {0};
             Freundlich adsorption theory requires Kf > 0
             """.format(Kf))
         if n < 1:
             validModel = False
-            message_list.append(""" best fit n = {0};
+            message_list.append("""best fit n = {0};
             Freundlich adsorption theory requires n >= 1
             """.format(n))
+        # check Confidence Interval theory
+        if validModel:
+            popt = [Kf, n]
+            confIntrvl = Freundlich.IsoConfAsym(xdata, popt,
+                                                self.minimizedFit.covar,
+                                                alpha)
+            if confIntrvl['upper'][1] < 1:
+                validModel = False
+                message_list.append("""upper confidence interval n = {0};
+                Freundlich adsorption theory requires n >= 1
+                """.format(confIntrvl['upper'][1]))
+            if confIntrvl['lower'][0] <= 0:
+                validModel = False
+                message_list.append("""lower confidence interval Kf = {0};
+                Freundlich adsorption theory requires Kf > 0
+                """.format(confIntrvl['lower'][0]))
         if message_list:
             if len(message_list) > 1:
                 message = message_list
             else:
                 message = message_list[0]
-        return validModel, message
+        return validModel, message, confIntrvl
+            
+    @staticmethod
+    def IsoConfAsym(xdata, popt, pcov, alpha=0.05):
+        """Freundlich asymptotic confidence interval calculation;
+        Modified from default"""
+        confIntrvl = AAstats.RegConfAsym(xdata, popt, pcov, alpha)
+        confIntrvl['upper'][1], confIntrvl['lower'][1] =\
+            confIntrvl['lower'][1], confIntrvl['upper'][1]
+        return confIntrvl
 
 
 class Langmuir(Isotherm):
@@ -228,14 +337,39 @@ class Langmuir(Isotherm):
         params.add('Kl', value=1.0)
         return params
 
-    @staticmethod
-    def ValidateFit(params):
+#    @staticmethod
+#    def ValidateFit(params, cov, alpha=0.05):
+#        validModel = True
+#        message = None
+#        message_list = []
+#        paramvals = params.valuesdict()
+#        Qmax = paramvals['Qmax']
+#        Kl = paramvals['Kl']
+#        if Qmax <= 0:
+#            validModel = False
+#            message_list.append(""" best fit Qmax = {0};
+#            Langmuir adsorption theory requires Qmax > 0
+#            """.format(Qmax))
+#        if Kl <= 0:
+#            validModel = False
+#            message_list.append(""" best fit Kl = {0};
+#            Langmuir adsorption theory requires Kl > 0
+#            """.format(Kl))
+#        if message_list:
+#            if len(message_list) > 1:
+#                message = message_list
+#            else:
+#                message = message_list[0]
+#        return validModel, message
+
+    def ValidateFit(self, xdata, alpha=0.05, confMethod='default'):
         validModel = True
         message = None
         message_list = []
-        paramvals = params.valuesdict()
+        paramvals = self.minimizedFit.params.valuesdict()
         Qmax = paramvals['Qmax']
         Kl = paramvals['Kl']
+        confIntrvl = None
         if Qmax <= 0:
             validModel = False
             message_list.append(""" best fit Qmax = {0};
@@ -246,9 +380,25 @@ class Langmuir(Isotherm):
             message_list.append(""" best fit Kl = {0};
             Langmuir adsorption theory requires Kl > 0
             """.format(Kl))
+        # check Confidence Interval theory
+        if validModel:
+            popt = [Qmax, Kl]
+            confIntrvl = Langmuir.IsoConfAsym(xdata, popt,
+                                              self.minimizedFit.covar,
+                                              alpha=0.05)
+            if confIntrvl['lower'][0] <= 0:
+                validModel = False
+                message_list.append("""upper confidence interval Qmax = {0};
+                Langmuir adsorption theory requires Qmax > 0
+                """.format(confIntrvl['lower'][0]))
+            if confIntrvl['lower'][1] <= 0:
+                validModel = False
+                message_list.append("""lower confidence interval Kl = {0};
+                Langmuir adsorption theory requires Kl > 0
+                """.format(confIntrvl['lower'][1]))
         if message_list:
             if len(message_list) > 1:
                 message = message_list
             else:
                 message = message_list[0]
-        return validModel, message
+        return validModel, message, confIntrvl
