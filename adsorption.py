@@ -1,16 +1,17 @@
 """adsorption.py"""
 
-# third party modules
-import numpy as np
-
 # adsorption-analysis modules
 import isotherm
-import AAvalidate
+import AAvalidate as val
+import AAstats
 
 
 class AdsorptionAnalysis(object):
     """A collection of isotherm class methods to analyze the adsorption
     properties of sample materials (samples).
+
+    fit methods is nelder-mead method, and then a second fit using leastsqr
+    according to lmfit. see isotherm.py for more information
 
     Arguments:
     data: A 2-array list of float64 (or convertable numeric),
@@ -24,7 +25,7 @@ class AdsorptionAnalysis(object):
         data: see input arguments
         error: Either FALSE, a string, or a list of strings. If it
                evaluates to TRUE further calculations cease to occur.
-        Isotherm: abstract base calss for child Isotherm classes
+        Isotherm: abstract base class for child Isotherm classes
             Isotherm attributes:
                 isotherm.params (see isotherm.py)
                 isotherm.userParams (see isotherm.py)
@@ -41,55 +42,73 @@ class AdsorptionAnalysis(object):
                    can use chisqr, aic, or bic selection criteria
     """
 
-    def __init__(self, data, alpha=0.05,
+    def __init__(
+            self, data, alpha=0.05,
             linear=None, freundlich=None, langmuir=None):
-        self.data = data
-        self.error = AAvalidate.validateInput(self.data)
-        if self.error:
+
+        # validate input
+        try:
+            val.validateData(data)
+            val.validateAlpha(alpha)
+        except val.InputError as ie:
+            print(ie)
             return None
-        self.data = [np.float64(data[0]), np.float64(data[1])]
+
+        # intialize fitting with Linear isotherm
         self.Linear = isotherm.Linear(
-            self.data, alpha=alpha, userParams=linear, validateInput=False)
+            data, userParams=linear, validateInput=False)
+
+        # test for linear model validity
         if not self.Linear.modelValidity:
-            msg = """invalid linear fit;
-            To force a {0} model fit,
-            call isotherm.{0}() explicitly"""
-            self.Freundlich = msg.format("Freundlich")
-            self.Langmuir = msg.format("Langmuir")
+            self.LinearFailCode()
             return None
+
+        # test for statistical significance (Asymptotic Confidence Interval)
+        Kd = [self.Linear.isoModelResult.params.valuesdict()['Kd']]
+        covar = self.Linear.isoModelResult.covar
+        confIntrvl = AAstats.RegConfAsym(data[0], Kd, covar, alpha)
+        if confIntrvl['lower'][0] <= 0:
+            self.LinearFailCode
+            return None
+
+        # fit the other isotherms
         self.Freundlich = isotherm.Freundlich(
-            self.data, alpha=alpha, userParams=freundlich, validateInput=False)
+            data, userParams=freundlich, validateInput=False)
         self.Langmuir = isotherm.Langmuir(
-            self.data, alpha=alpha, userParams=langmuir, validateInput=False)
+            data, userParams=langmuir, validateInput=False)
+
+    def LinearFailCode(self):
+        """In the event that the best fit Linear isotherm fails either
+        theory or statistical tests, run this"""
+
+        message = """invalid linear fit;
+        To force a {0} model fit, call isotherm.{0}() explicitly"""
+        self.Freundlich = message.format("Freundlich")
+        self.Langmuir = message.format("Langmuir")
 
     def bestfit(self, selection="aic"):
         """Return the isotherm with the lowest selection criteria value.
         Selection criteria may be:
         chisqr: sum((residuals array) ** 2)
-        aic: Akaike information criterion - (default)
+        aic: Akaike information criterion (default)
         bic: Bayesian information criterion
         """
 
-        # check for sample isotherm fitting errors
-        error_msg = "unable to compute bestfit isotherm"
-        if self.error:
-            return error_msg.append("\
-                check self.error for more information")
+        # check Linear isotherm
+        error_message = "unable to compute bestfit isotherm; \n"
         if not self.Linear.modelValidity:
-            return error_msg.append("\
-                check self.Linear.modelValidtyMsg for more information")
+            return error_message.append("self.Linear.modelValidty = False")
 
         # initialize selection with linear isotherm
         isotherm = 'Linear'
-        slctn_val = getattr(self.Linear.minimizedFit, selection)
+        slctn_val = getattr(self.Linear.isoModelResult, selection)
 
-        # compare linear fit to other isotherm fits
+        # compare other isotherm fits
         isotherms = [self.Freundlich, self.Langmuir]
-#         isotherms = [self.Langmuir]
         for iso in isotherms:
             if not iso.modelValidity:
                 continue
-            iso_slctn_val = getattr(iso.minimizedFit, selection)
+            iso_slctn_val = getattr(iso.isoModelResult, selection)
             if iso_slctn_val < slctn_val:
                 isotherm = iso.__name__
                 slctn_val = iso_slctn_val
