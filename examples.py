@@ -33,9 +33,24 @@ y = isotherm.Freundlich.IsothermFunc(x, Kf=.2, n=5) + noise
 plt.scatter(x, y)
 
 # example fitting using individual isotherms
-example_Linear = isotherm.Linear([x, y])
-example_Freundlich = isotherm.Freundlich([x, y])
-example_Langmuir = isotherm.Langmuir([x, y])
+#example_Linear = isotherm.Linear([x, y])
+#example_Freundlich = isotherm.Freundlich([x, y])
+#example_Langmuir = isotherm.Langmuir([x, y])
 
 # example fitting using Adsorption Analysis module
 example_AdsorptionAnalysis = adsorption.AdsorptionAnalysis([x, y])
+
+#---- plot fit -----
+# obtain bestfit isotherm
+best_fit_isotherm = example_AdsorptionAnalysis.bestfit()
+
+# produce bestfit isotherm dataset
+func = getattr(example_AdsorptionAnalysis, best_fit_isotherm).IsothermFunc
+best_fit_params = getattr(
+    example_AdsorptionAnalysis,
+    best_fit_isotherm).isoModelResult.params
+x_iso = np.linspace(xmin, xmax, n)
+y_reg = func(x_iso, **best_fit_params)
+
+# plot bestfit isotherm
+plt.plot(x_iso, y_reg, 'b-')
